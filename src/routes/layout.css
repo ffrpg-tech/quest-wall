@@ -1,0 +1,12 @@
+@import 'tailwindcss';
+
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* This is a plain CSS file (imported via JS, not a compiled .svelte <style>
+   block), so Svelte's :global() wrapper has no meaning here — it's already
+   global scope. A previous version wrapped this in :global(body), which is
+   an invalid selector in plain CSS and got silently dropped, so the body
+   background never actually switched with the dark class. */
+body {
+	@apply bg-white text-gray-900 dark:bg-gray-900 dark:text-gray-100;
+}
