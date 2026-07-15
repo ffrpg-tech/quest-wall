@@ -43,25 +43,50 @@
 				>. This is an unofficial fan project and isn't affiliated with them.
 			</p>
 			<p class="mt-1">
-				<strong>Special thanks</strong> to the folks on the FarmRPG Discord who shared quest data.
+				<strong>Special thanks</strong> to the folks on the FarmRPG Discord who helped make this possible,
+				tested the calculator, and gave feedback:
 			</p>
-			<p class="mt-1 text-xs text-gray-500 italic dark:text-gray-400">
-				[Placeholder — specific names to be added here. If that's you, reach out on Discord so I can
-				credit you properly.]
-			</p>
+			<ol class="mt-1 list-decimal space-y-1 pl-5">
+				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Erisere</span> — shared their stored quest data via CSV and helped test the calculator.</li>
+			</ol>
 		</div>
 
 		<div>
-			<h2 class="font-semibold text-gray-900 dark:text-gray-100">Sheet maintainers</h2>
+			<h2 class="font-semibold text-gray-900 dark:text-gray-100">Sheet creators & maintainers</h2>
 			<p class="mt-1">
 				This project wouldn't exist without the community members who <em
-					>maintained the original Quest Wall spreadsheets</em
+					>created and maintained existing Quest Wall spreadsheets</em
 				>. Working through their filtering math and understanding how each questline's requirements
 				were structured is what made it possible to centralize all of it into one calculator.
 			</p>
-			<p class="mt-1 text-xs text-gray-500 italic dark:text-gray-400">
-				[Placeholder — specific names to be added here. If that's you, reach out on Discord so I can
-				credit you properly.]
+			<p class="mt-1">
+				<strong>Special thanks</strong> to the following sheets I've used to plan, design and build the calculator:
+			</p>
+			<ol class="mt-1 list-decimal space-y-1 pl-5">
+				<li>
+					<a
+						href="https://docs.google.com/spreadsheets/d/1PzawdSXTFVhy6Ro6j-m3wTPSJG0m3-AP4K6heH5T8Gk"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+						>A Towering Investment Checklist & Strategy</a>
+					by <span class="font-medium text-emerald-600 dark:text-emerald-400">Badymaru</span>
+					— where I originated my idea.
+				</li>
+				<li>
+					<a
+						href="https://docs.google.com/spreadsheets/d/1RMPxMBkcK7rqapG7I8nPjF7Kop1i0oV26kV75QZ2VAw"
+						target="_blank"
+						rel="noopener noreferrer"
+						class="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
+						>Compare Completed Quests</a>
+					by <span class="font-medium text-red-600 dark:text-red-400">Unknown</span>
+					— where I reused the console script to parse the quest data and created the inventory parser from it.
+				</li>
+			</ol>
+			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
+				<strong>Note:</strong> If you know the sheet creator or maintainer or are the owner,
+				please reach out to the feedback/bug report button in the calculator and I will include you here.
 			</p>
 		</div>
 

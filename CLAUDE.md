@@ -6,10 +6,12 @@ verification standard) — those still apply here and aren't repeated below.
 
 ## What this project is
 
-kodyy's Farm RPG Quest Wall Calculator — a SvelteKit static app. Player pastes
-their FarmRPG inventory, picks a questline, and the app reports the first
-quest in that chain they can't complete with current materials. Fan project,
-not affiliated with FarmRPG, will never be monetized.
+Farm RPG Quest Wall Calculator — a SvelteKit static app. Player pastes
+their FarmRPG inventory, queues one or more questlines (order matters — they
+share one inventory), and the app reports the first quest in each chain they
+can't complete with current materials, plus a combined shortfall summary
+across the whole queue. Fan project, not affiliated with FarmRPG, will never
+be monetized.
 
 ## Data pipeline (read before touching quest/item data)
 
@@ -54,18 +56,32 @@ not affiliated with FarmRPG, will never be monetized.
 
 ## Core calculation invariants (`src/lib/quest/diff.ts`)
 
-- `diffQuestline` walks a questline in order against a _cloned_ inventory,
-  decrementing per requirement and flooring at 0 (never negative), so later
-  quests in the chain still get meaningful numbers even after a shortfall.
+- `walkQuestline` is the shared internal engine: it walks a single questline's
+  quests in order against a mutated `Map` inventory, decrementing per
+  requirement and flooring at 0 (never negative), so later quests in the
+  chain still get meaningful numbers even after a shortfall. Both public
+  entry points below call it.
+- `diffQuestline(questline, startingInventory, completed)` clones the
+  inventory privately before calling `walkQuestline` — use this for a single
+  questline.
+- `diffQuestlineQueue(questlines, startingInventory, completed)` clones the
+  inventory **once** and threads that same mutated `Map` through every
+  questline in array order via `walkQuestline` — whichever questline is
+  earlier in the queue gets first claim on scarce shared items and on
+  rewards earned along the way. This is intentionally ordering-dependent;
+  don't "fix" it to diff each questline independently.
+- `aggregateQueueShortfalls(results)` rolls up each questline's already-
+  computed `totalShortfalls` into one queue-wide per-item breakdown
+  (`byQuestline` → `byQuest`), without re-walking any inventory.
 - Quests already in the `completed` Set are skipped entirely — no requirement
   check, no inventory deduction — since that consumption already happened
   before the current inventory snapshot was taken.
-- `totalShortfalls` aggregates shortfall across the whole chain per item.
-  When accumulating a repeat item, keep `needed`/`have`/`short` mutually
-  consistent (`have = needed - short`) — a past bug let `needed`/`have`
-  freeze at the first quest's values while only `short` kept summing
-  correctly. There's a regression test for this in `diff.spec.ts`; keep it
-  green if you touch this loop.
+- `totalShortfalls` (chain-level) and `aggregateQueueShortfalls` (queue-level)
+  both accumulate through the shared `accumulateShortfall` helper, which
+  keeps `needed`/`have`/`short` mutually consistent (`have = needed - short`)
+  — a past bug let `needed`/`have` freeze at the first quest's values while
+  only `short` kept summing correctly. There's a regression test for this in
+  `diff.spec.ts`; keep it green if you touch either rollup.
 - `questKey(questlineName, questName)` lives in `types.ts` (not
   `persistence.ts`) — `diff.ts` is a pure calculation module and shouldn't
   import from the storage-specific persistence module.
@@ -78,13 +94,27 @@ not affiliated with FarmRPG, will never be monetized.
   parsed JSON — never spread/merge the parsed object's own keys elsewhere.
   This is a deliberate prototype-pollution guard; don't loosen it for
   convenience.
+- `loadQueue`/`saveQueue` persist the ordered questline-name queue under the
+  `farmrpg-quest-tracker:queue-v1` key. `+page.svelte` filters the loaded
+  queue against currently known questline names on hydration, dropping any
+  stale saved name that no longer matches a real questline.
+
+## Multi-questline queue UI (`src/routes/+page.svelte`)
+
+- `selectedQuestlineNames` is the ordered queue (order is meaningful — it
+  drives the shared-inventory walk order in `diffQuestlineQueue`).
+  `toggleQueue`/`removeFromQueue` add/remove entries; drag-and-drop reorder
+  is implemented via `dragFromIndex`/`dragOverIndex` + `handleQueueDrop`.
+- Firefox aborts an HTML5 drag if `dataTransfer.setData` isn't called in
+  `dragstart` (Chromium doesn't enforce this) — keep that call if you touch
+  the drag handlers.
+- `diffResults` (from `diffQuestlineQueue`) drives the per-questline Results
+  panels; `shortfallSummary` (from `aggregateQueueShortfalls`) drives the
+  combined "Shortfall summary" section. Both are `$derived` from
+  `selectedQuestlines` + `inventoryMap` + `completed`.
 
 ## Workflow notes
 
-- This repo currently has **zero git commits**. Skills that bootstrap via
-  `git diff origin/HEAD...` or similar will fail on ref resolution — that's
-  expected until the first commit exists, and is not a reason to commit
-  preemptively (commit only when asked, per global CLAUDE.md).
 - When asked to run `/simplify`, `/code-review`, `/security-review` in
   sequence, respect the order given even if it differs from habit — the user
   has explicitly corrected this once already (wants review before security

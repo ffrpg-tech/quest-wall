@@ -1,12 +1,14 @@
-# kodyy's Farm RPG Quest Wall Calculator
+# Farm RPG Quest Wall Calculator
 
 A static web app for [FarmRPG](https://farmrpg.com) players. Paste your in-game
-inventory, pick a questline, and instantly see which quest in that chain you'll
-run out of materials on (the "wall point") — no more manually cross-referencing
-requirement lists quest by quest.
+inventory, pick one or more questlines, and instantly see which quest in each
+chain you'll run out of materials on (the "wall point") — no more manually
+cross-referencing requirement lists quest by quest.
 
 This is a fan project, not affiliated with FarmRPG. It will never be
 monetized. All credit for FarmRPG itself goes to its developers.
+
+> Notice: This project is created with the assistance of Claude Code.
 
 ## How it works
 
@@ -14,12 +16,19 @@ monetized. All credit for FarmRPG itself goes to its developers.
    (walked through in-app via the "How do I get my inventory?" tutorial modal)
    to copy your inventory to the clipboard as tab-separated text.
 2. Paste that text into the Inventory box on this site and parse it.
-3. Pick a questline from the scrollable, filterable list.
-4. The app walks the questline's quests in order, decrementing a simulated
-   copy of your inventory as each quest's requirements are consumed, and
-   reports the first quest where you don't have enough on hand.
-5. Mark quests done as you complete them — progress is saved to
-   `localStorage` and can be exported/imported as JSON.
+3. Pick one or more questlines from the scrollable, filterable list to build a
+   queue — order matters and can be changed by drag-and-drop, since queued
+   questlines share one simulated inventory (whichever questline is first in
+   the queue gets first claim on scarce shared items and on rewards earned
+   along the way).
+4. The app walks each queued questline's quests in order, decrementing the
+   shared simulated inventory as each quest's requirements are consumed, and
+   reports the first quest in each chain where you don't have enough on hand.
+   A combined "Shortfall summary" section rolls up every missing item across
+   the whole queue, broken down by questline and quest.
+5. Mark quests done as you complete them — progress, inventory, and the
+   questline queue are all saved to `localStorage` and progress can be
+   exported/imported as JSON.
 
 Quest and item data (`static/questlines.json`, `src/lib/data/items.json`)
 is generated at build time from a CSV export of the quest database — see
@@ -34,14 +43,21 @@ cacheable request — see `_headers` for the cache headers.
 src/lib/quest/
   types.ts          Shared types (Quest, Questline, InventoryEntry) + questKey()
   inventory.ts       Parses the clipboard inventory dump, merges updates into inventory state
-  diff.ts             Core calculation: walks a questline against inventory, finds the wall point
-  persistence.ts     localStorage read/write for completed-quest tracking, dark mode, JSON export/import
+  diff.ts             Core calculation: walks questline(s) against inventory, finds the wall point(s);
+                      diffQuestline (single) and diffQuestlineQueue/aggregateQueueShortfalls (queue)
+  persistence.ts     localStorage read/write for completed-quest tracking, inventory, questline
+                      queue, dark mode, JSON export/import
 static/
   questlines.json    Generated — quests grouped into questlines, fetched by the client at runtime
 src/lib/data/
   items.json          Generated — all known item names (for autosuggest/validation)
+src/lib/
+  seo.ts              Site metadata constants + canonicalUrl() helper, used for meta tags/JSON-LD
 src/routes/
-  +page.svelte        The whole app UI (inventory input, questline picker, results, tutorial modal)
+  +page.svelte        The whole app UI (inventory input, questline queue picker, results,
+                      shortfall summary, tutorial modal)
+  about/+page.svelte   Static "about" page
+  credits/+page.svelte Static credits/acknowledgements page
   layout.css           Tailwind entry + dark mode variant
 scripts/
   build-questlines.mjs  Node script that generates the two data/ JSON files from the source CSV
@@ -80,7 +96,9 @@ property of the data, not a bug in the script.
 ## Testing & checks
 
 ```sh
-npm run test:unit    # vitest (quest engine + persistence unit tests)
+npm run test:unit    # vitest (diff.spec.ts, persistence.spec.ts, types.spec.ts, etc.)
+npm run test:e2e      # playwright install && playwright test
+npm test              # test:unit --run, then test:e2e
 npm run check         # svelte-check / TypeScript
 npm run lint          # prettier + eslint
 ```

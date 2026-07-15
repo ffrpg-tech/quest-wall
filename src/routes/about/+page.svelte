@@ -55,14 +55,20 @@
 			that. You need to walk it <em>quest by quest</em>.
 		</p>
 		<p>
-			Paste your inventory, pick a questline — it walks the chain and shows you exactly where you
-			run dry, <strong>live</strong>, not a static number. It's a fan project, made for the
-			community. See the
+			This was how my experience went through when I was working on my ATI quest. Eventually, I figured this might be the same case later after ATI.
+			That's when I planned on creating a tool that can help me and the community to plan out the questlines and see where we will wall. 
+			I also wanted to make it easy for anyone to use, so I made it a web app that can be accessed from anywhere: from your desktop or mobile.
+		</p>
+		<p>
+			The premise is: paste your inventory and your finished questlines, then pick your next questlines — it walks the chain and shows you exactly where you
+			run dry. 
+		</p>
+		<p>It's a fan project, made for the community. See the
 			<a
 				href={resolve('/credits')}
 				class="font-medium text-emerald-600 hover:underline dark:text-emerald-400">credits page</a
 			> for who made that possible.
 		</p>
-		<p>Built with <strong>AI assistance</strong>. Testing and debugging were mine.</p>
+		<p>This project is built with <strong>AI assistance</strong>. Testing and debugging were <span class="font-medium text-emerald-600 dark:text-emerald-400">validated by humans</span>.</p>
 	</section>
 </div>
