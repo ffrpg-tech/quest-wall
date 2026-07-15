@@ -13,8 +13,13 @@ not affiliated with FarmRPG, will never be monetized.
 
 ## Data pipeline (read before touching quest/item data)
 
-- `data/farm_rpg_quests_master.csv` is the source of truth. `src/lib/data/questlines.json`
+- `data/farm_rpg_quests_master.csv` is the source of truth. `static/questlines.json`
   and `src/lib/data/items.json` are **generated** — never hand-edit them.
+  `questlines.json` lives under `static/` (not `src/lib/data/`) and is
+  `fetch()`-ed by the client at runtime rather than statically imported, so it
+  ships as its own cacheable request instead of bloating the page's JS bundle
+  — see `_headers` (project root) for the cache headers. Don't switch it back to a static
+  import without re-solving that egress problem some other way.
 - Regenerate with `node scripts/build-questlines.mjs` after any CSV change.
   It also writes `scripts/grouping-report.txt` for spot-checking questline
   grouping against the raw CSV.
@@ -43,13 +48,13 @@ not affiliated with FarmRPG, will never be monetized.
 - Dark mode is a `.dark` class on `<html>`, toggled via Tailwind v4's
   `@custom-variant dark (&:where(.dark, .dark *));` in `layout.css`. Persisted
   via `saveDarkMode`/`loadDarkMode` in `persistence.ts`, but only written
-  *after* hydration reads the saved value first — writing before that would
+  _after_ hydration reads the saved value first — writing before that would
   overwrite a saved preference with the default.
 - Icons: use `@lucide/svelte`, **not** the deprecated `lucide-svelte` package.
 
 ## Core calculation invariants (`src/lib/quest/diff.ts`)
 
-- `diffQuestline` walks a questline in order against a *cloned* inventory,
+- `diffQuestline` walks a questline in order against a _cloned_ inventory,
   decrementing per requirement and flooring at 0 (never negative), so later
   quests in the chain still get meaningful numbers even after a shortfall.
 - Quests already in the `completed` Set are skipped entirely — no requirement

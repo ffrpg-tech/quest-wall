@@ -1,6 +1,10 @@
-// Parses data/farm_rpg_quests_master.csv into src/lib/data/questlines.json,
+// Parses data/farm_rpg_quests_master.csv into static/questlines.json,
 // grouping quests into questlines by stripping a trailing sequence marker
 // (roman numeral, "Part NN", "- A/B/C", or trailing digits) off the quest name.
+//
+// questlines.json lives under static/ (not src/lib/data/) so the client fetches
+// it as a plain static asset with its own long-lived cache headers (see
+// vercel.json) instead of it being bundled straight into the page's JS chunk.
 //
 // Also writes scripts/grouping-report.txt so the grouping can be spot-checked
 // against the raw quest list before the app trusts it (see scope doc's
@@ -13,7 +17,7 @@ import path from 'node:path';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.resolve(__dirname, '..');
 const CSV_PATH = path.join(ROOT, 'data/farm_rpg_quests_master.csv');
-const OUT_PATH = path.join(ROOT, 'src/lib/data/questlines.json');
+const OUT_PATH = path.join(ROOT, 'static/questlines.json');
 const ITEMS_OUT_PATH = path.join(ROOT, 'src/lib/data/items.json');
 const REPORT_PATH = path.join(__dirname, 'grouping-report.txt');
 
@@ -293,7 +297,9 @@ function main() {
 	console.log(`Parsed ${quests.length} quests into ${Object.keys(questlines).length} questlines`);
 	console.log(`(${chains.length} chains, ${singletons.length} singletons)`);
 	console.log(`Wrote ${path.relative(ROOT, OUT_PATH)}`);
-	console.log(`Wrote ${path.relative(ROOT, ITEMS_OUT_PATH)} (${sortedItems.length} unique item names)`);
+	console.log(
+		`Wrote ${path.relative(ROOT, ITEMS_OUT_PATH)} (${sortedItems.length} unique item names)`
+	);
 	console.log(`Wrote ${path.relative(ROOT, REPORT_PATH)} for spot-checking`);
 }
 

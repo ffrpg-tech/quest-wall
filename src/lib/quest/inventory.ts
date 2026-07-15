@@ -43,9 +43,7 @@ export function parseInventoryDump(text: string): Map<string, InventoryEntry> {
 		const name = fields[nameIndex];
 		if (!name) continue;
 
-		const maxed = fields
-			.slice(qtyIndex + 1)
-			.some((f) => /^(max|maxed|true|yes)$/i.test(f));
+		const maxed = fields.slice(qtyIndex + 1).some((f) => /^(max|maxed|true|yes)$/i.test(f));
 
 		const existing = result.get(name);
 		if (existing) {

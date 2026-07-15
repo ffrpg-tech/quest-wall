@@ -21,9 +21,12 @@ monetized. All credit for FarmRPG itself goes to its developers.
 5. Mark quests done as you complete them — progress is saved to
    `localStorage` and can be exported/imported as JSON.
 
-Quest and item data (`src/lib/data/questlines.json`, `src/lib/data/items.json`)
+Quest and item data (`static/questlines.json`, `src/lib/data/items.json`)
 is generated at build time from a CSV export of the quest database — see
-[Regenerating quest data](#regenerating-quest-data) below.
+[Regenerating quest data](#regenerating-quest-data) below. `questlines.json`
+lives under `static/` (not `src/lib/data/`) and is fetched by the client at
+runtime rather than bundled into the page's JS, so it ships as its own
+cacheable request — see `_headers` for the cache headers.
 
 ## Project structure
 
@@ -33,8 +36,9 @@ src/lib/quest/
   inventory.ts       Parses the clipboard inventory dump, merges updates into inventory state
   diff.ts             Core calculation: walks a questline against inventory, finds the wall point
   persistence.ts     localStorage read/write for completed-quest tracking, dark mode, JSON export/import
+static/
+  questlines.json    Generated — quests grouped into questlines, fetched by the client at runtime
 src/lib/data/
-  questlines.json    Generated — quests grouped into questlines
   items.json          Generated — all known item names (for autosuggest/validation)
 src/routes/
   +page.svelte        The whole app UI (inventory input, questline picker, results, tutorial modal)
@@ -65,7 +69,7 @@ If `data/farm_rpg_quests_master.csv` changes, regenerate the derived JSON:
 node scripts/build-questlines.mjs
 ```
 
-This writes `src/lib/data/questlines.json`, `src/lib/data/items.json`, and
+This writes `static/questlines.json`, `src/lib/data/items.json`, and
 `scripts/grouping-report.txt` (a human-readable dump of every detected
 questline chain, for spot-checking the grouping logic against the raw CSV).
 
@@ -87,5 +91,5 @@ npm run lint          # prettier + eslint
 npm run build
 ```
 
-Preview the production build with `npm run preview`. Deploys via
-`@sveltejs/adapter-vercel`.
+Preview the production build with `npm run preview`. Deploys to Cloudflare
+Pages via `@sveltejs/adapter-cloudflare`.

@@ -17,36 +17,62 @@ export interface QuestDiffResult {
 	done: boolean;
 }
 
+/** One quest's contribution to a chain-level aggregated item shortfall. */
+export interface QuestShortfallShare {
+	questName: string;
+	seq: number;
+	label: string;
+	short: number;
+}
+
+/** A chain-level aggregated shortfall, broken down by which quest(s) in the chain it came from. */
+export interface AggregatedItemShortfall extends ItemShortfall {
+	byQuest: QuestShortfallShare[];
+}
+
+/** Folds a new `needed`/`short` hit into an existing aggregate in place, keeping `have = needed - short` internally consistent — the single accumulation rule shared by the chain-level (`walkQuestline`) and queue-level (`aggregateQueueShortfalls`) rollups, so the invariant can't drift out of sync between the two call sites. */
+function accumulateShortfall(target: ItemShortfall, needed: number, short: number): void {
+	target.needed += needed;
+	target.short += short;
+	target.have = target.needed - target.short;
+}
+
 export interface QuestlineDiffResult {
 	questlineName: string;
 	quests: QuestDiffResult[];
 	/** Index into `quests` of the first quest the player can't complete with current inventory, or null if the whole chain is clear. */
 	wallPointIndex: number | null;
 	/** Aggregate shortfall across the whole chain, item -> total still missing (assuming quests are attempted in order regardless of earlier shortfalls). */
-	totalShortfalls: ItemShortfall[];
+	totalShortfalls: AggregatedItemShortfall[];
 }
 
 /**
- * Walks a questline's quests in order, decrementing a cloned copy of the
- * player's inventory as each quest's requirements are consumed. Reports,
- * per quest, whether the player currently has enough on hand, and the first
- * quest (the "wall point") where they don't.
+ * Walks a questline's quests in order against `inv`, mutating it in place as
+ * requirements are consumed and rewards are credited. Shared by
+ * `diffQuestline` (single questline, private clone) and `diffQuestlineQueue`
+ * (multiple questlines threaded through the same shared inventory).
  */
-export function diffQuestline(
+function walkQuestline(
 	questline: Questline,
-	startingInventory: Map<string, number>,
-	completed: Set<string> = new Set()
+	inv: Map<string, number>,
+	completed: Set<string>
 ): QuestlineDiffResult {
-	const inv = new Map(startingInventory);
 	const quests: QuestDiffResult[] = [];
 	let wallPointIndex: number | null = null;
-	const totalShortfallMap = new Map<string, ItemShortfall>();
+	const totalShortfallMap = new Map<string, AggregatedItemShortfall>();
 
 	for (let i = 0; i < questline.quests.length; i++) {
 		const q = questline.quests[i];
 
 		if (completed.has(questKey(questline.name, q.name))) {
-			quests.push({ questName: q.name, seq: q.seq, label: q.label, shortfalls: [], ok: true, done: true });
+			quests.push({
+				questName: q.name,
+				seq: q.seq,
+				label: q.label,
+				shortfalls: [],
+				ok: true,
+				done: true
+			});
 			continue;
 		}
 
@@ -60,22 +86,37 @@ export function diffQuestline(
 				const short = req.qty - have;
 				shortfalls.push({ item: req.item, needed: req.qty, have, short });
 
-				// needed/have/short stay internally consistent (have = needed - short)
-				// across accumulation, instead of only .short updating while
-				// needed/have freeze at whichever quest hit this item first.
 				const existing = totalShortfallMap.get(req.item);
 				if (existing) {
-					existing.needed += req.qty;
-					existing.short += short;
-					existing.have = existing.needed - existing.short;
+					accumulateShortfall(existing, req.qty, short);
+
+					// Same quest can hit the same item twice only if it lists the
+					// item as a requirement more than once — fold into the same
+					// share rather than pushing a duplicate row.
+					const share = existing.byQuest.find((b) => b.seq === q.seq);
+					if (share) share.short += short;
+					else existing.byQuest.push({ questName: q.name, seq: q.seq, label: q.label, short });
 				} else {
-					totalShortfallMap.set(req.item, { item: req.item, needed: req.qty, have, short });
+					totalShortfallMap.set(req.item, {
+						item: req.item,
+						needed: req.qty,
+						have,
+						short,
+						byQuest: [{ questName: q.name, seq: q.seq, label: q.label, short }]
+					});
 				}
 			}
 
 			// Decrement regardless of shortfall so later quests in the chain
 			// still show accurate running numbers (floor at 0, never negative).
 			inv.set(req.item, Math.max(0, have - req.qty));
+		}
+
+		// Credit rewards after requirements are decremented, for every simulated
+		// quest regardless of shortfall — mirrors the "always decrement" rule
+		// above so a later quest can benefit from an earlier quest's reward.
+		for (const rew of q.rewards) {
+			inv.set(rew.item, (inv.get(rew.item) ?? 0) + rew.qty);
 		}
 
 		quests.push({ questName: q.name, seq: q.seq, label: q.label, shortfalls, ok, done: false });
@@ -88,4 +129,85 @@ export function diffQuestline(
 		wallPointIndex,
 		totalShortfalls: Array.from(totalShortfallMap.values()).sort((a, b) => b.short - a.short)
 	};
+}
+
+/**
+ * Walks a questline's quests in order, decrementing a cloned copy of the
+ * player's inventory as each quest's requirements are consumed. Reports,
+ * per quest, whether the player currently has enough on hand, and the first
+ * quest (the "wall point") where they don't.
+ */
+export function diffQuestline(
+	questline: Questline,
+	startingInventory: Map<string, number>,
+	completed: Set<string> = new Set()
+): QuestlineDiffResult {
+	return walkQuestline(questline, new Map(startingInventory), completed);
+}
+
+/**
+ * Diffs multiple questlines against one shared inventory, threading the same
+ * mutated inventory between them in array order. Whichever questline runs
+ * first gets first claim on scarce shared items (and on rewards earned along
+ * the way), so results are ordering-dependent by design.
+ */
+export function diffQuestlineQueue(
+	questlines: Questline[],
+	startingInventory: Map<string, number>,
+	completed: Set<string> = new Set()
+): QuestlineDiffResult[] {
+	const inv = new Map(startingInventory);
+	return questlines.map((questline) => walkQuestline(questline, inv, completed));
+}
+
+/** One questline's contribution to a queue-level aggregated item shortfall, still broken down by quest. */
+export interface QuestlineShortfallShare {
+	questlineName: string;
+	short: number;
+	byQuest: QuestShortfallShare[];
+}
+
+/** A queue-level aggregated shortfall, broken down by which questline(s) — and, within each, which quest(s) — it came from. */
+export interface QueueItemShortfall extends ItemShortfall {
+	byQuestline: QuestlineShortfallShare[];
+}
+
+/**
+ * Rolls up per-questline `totalShortfalls` (already produced by
+ * `diffQuestlineQueue`) into one queue-wide breakdown per item, so a
+ * multi-questline summary can show "you're short 40 Wood total: 25 from
+ * Chain A (quest II), 15 from Chain B (quest I)" without re-walking anything.
+ */
+export function aggregateQueueShortfalls(results: QuestlineDiffResult[]): QueueItemShortfall[] {
+	const map = new Map<string, QueueItemShortfall>();
+
+	for (const result of results) {
+		for (const s of result.totalShortfalls) {
+			const share: QuestlineShortfallShare = {
+				questlineName: result.questlineName,
+				short: s.short,
+				// Copy rather than alias — this reads from result.totalShortfalls,
+				// which diffResults/shortfallSummary also hold a reference to; the
+				// UI already iterates byQuest in a keyed {#each}, one edit away
+				// from an in-place sort that would otherwise corrupt the source.
+				byQuest: [...s.byQuest]
+			};
+
+			const existing = map.get(s.item);
+			if (existing) {
+				accumulateShortfall(existing, s.needed, s.short);
+				existing.byQuestline.push(share);
+			} else {
+				map.set(s.item, {
+					item: s.item,
+					needed: s.needed,
+					have: s.have,
+					short: s.short,
+					byQuestline: [share]
+				});
+			}
+		}
+	}
+
+	return Array.from(map.values()).sort((a, b) => b.short - a.short);
 }

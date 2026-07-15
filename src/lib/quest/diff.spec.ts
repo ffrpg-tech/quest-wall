@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { diffQuestline } from './diff';
+import { aggregateQueueShortfalls, diffQuestline, diffQuestlineQueue } from './diff';
 import { parseInventoryDump } from './inventory';
 import { questKey, type Questline } from './types';
 
@@ -63,7 +63,18 @@ describe('diffQuestline', () => {
 		// — not the first-hit quest's stale {needed:10, have:7} with only short
 		// correctly summed.
 		const result = diffQuestline(questline, new Map([['Wood', 12]]));
-		expect(result.totalShortfalls).toEqual([{ item: 'Wood', needed: 11, have: 7, short: 4 }]);
+		expect(result.totalShortfalls).toEqual([
+			{
+				item: 'Wood',
+				needed: 11,
+				have: 7,
+				short: 4,
+				byQuest: [
+					{ questName: 'Test Chain II', seq: 2, label: 'II', short: 3 },
+					{ questName: 'Test Chain III', seq: 3, label: 'III', short: 1 }
+				]
+			}
+		]);
 	});
 
 	it('treats a missing item as zero on hand rather than throwing', () => {
@@ -91,6 +102,175 @@ describe('diffQuestline', () => {
 		expect(result.quests[1].ok).toBe(false);
 		expect(result.quests[1].shortfalls).toEqual([{ item: 'Wood', needed: 10, have: 6, short: 4 }]);
 		expect(result.wallPointIndex).toBe(1);
+	});
+
+	it('credits an earlier quest reward toward a later quest requirement', () => {
+		const rewardChain: Questline = {
+			name: 'Reward Chain',
+			questCount: 2,
+			quests: [
+				{
+					name: 'Reward Chain I',
+					from: 'NPC',
+					startDate: '',
+					endDate: '',
+					requirements: [],
+					rewards: [{ item: 'Iron', qty: 5 }],
+					seq: 1,
+					label: 'I'
+				},
+				{
+					name: 'Reward Chain II',
+					from: 'NPC',
+					startDate: '',
+					endDate: '',
+					requirements: [{ item: 'Iron', qty: 5 }],
+					rewards: [],
+					seq: 2,
+					label: 'II'
+				}
+			]
+		};
+
+		const result = diffQuestline(rewardChain, new Map());
+		expect(result.quests[1].ok).toBe(true);
+		expect(result.quests[1].shortfalls).toEqual([]);
+		expect(result.wallPointIndex).toBeNull();
+	});
+
+	it('does not double-credit rewards for a quest already marked complete', () => {
+		const rewardChain: Questline = {
+			name: 'Reward Chain',
+			questCount: 2,
+			quests: [
+				{
+					name: 'Reward Chain I',
+					from: 'NPC',
+					startDate: '',
+					endDate: '',
+					requirements: [],
+					rewards: [{ item: 'Iron', qty: 5 }],
+					seq: 1,
+					label: 'I'
+				},
+				{
+					name: 'Reward Chain II',
+					from: 'NPC',
+					startDate: '',
+					endDate: '',
+					requirements: [{ item: 'Iron', qty: 5 }],
+					rewards: [],
+					seq: 2,
+					label: 'II'
+				}
+			]
+		};
+
+		const completedSet = new Set([questKey('Reward Chain', 'Reward Chain I')]);
+		const result = diffQuestline(rewardChain, new Map(), completedSet);
+		expect(result.quests[1].ok).toBe(false);
+		expect(result.quests[1].shortfalls).toEqual([{ item: 'Iron', needed: 5, have: 0, short: 5 }]);
+	});
+});
+
+describe('diffQuestlineQueue', () => {
+	const scarceItemQuestline = (name: string): Questline => ({
+		name,
+		questCount: 1,
+		quests: [
+			{
+				name: `${name} I`,
+				from: 'NPC',
+				startDate: '',
+				endDate: '',
+				requirements: [{ item: 'Iron', qty: 10 }],
+				rewards: [],
+				seq: 1,
+				label: 'I'
+			}
+		]
+	});
+
+	it('gives the first questline in the queue priority on a shared scarce item', () => {
+		const a = scarceItemQuestline('Chain A');
+		const b = scarceItemQuestline('Chain B');
+		const [resultA, resultB] = diffQuestlineQueue([a, b], new Map([['Iron', 10]]));
+
+		expect(resultA.quests[0].ok).toBe(true);
+		expect(resultB.quests[0].ok).toBe(false);
+		expect(resultB.quests[0].shortfalls).toEqual([
+			{ item: 'Iron', needed: 10, have: 0, short: 10 }
+		]);
+	});
+
+	it('moves the shortfall to the other questline when the queue order is reversed', () => {
+		const a = scarceItemQuestline('Chain A');
+		const b = scarceItemQuestline('Chain B');
+		const [resultB, resultA] = diffQuestlineQueue([b, a], new Map([['Iron', 10]]));
+
+		expect(resultB.quests[0].ok).toBe(true);
+		expect(resultA.quests[0].ok).toBe(false);
+	});
+});
+
+describe('aggregateQueueShortfalls', () => {
+	it('rolls up per-questline shortfalls into one queue-wide breakdown per item, by questline and quest', () => {
+		const a: Questline = {
+			name: 'Chain A',
+			questCount: 1,
+			quests: [
+				{
+					name: 'Chain A I',
+					from: 'NPC',
+					startDate: '',
+					endDate: '',
+					requirements: [{ item: 'Iron', qty: 10 }],
+					rewards: [],
+					seq: 1,
+					label: 'I'
+				}
+			]
+		};
+		const b: Questline = {
+			name: 'Chain B',
+			questCount: 1,
+			quests: [
+				{
+					name: 'Chain B I',
+					from: 'NPC',
+					startDate: '',
+					endDate: '',
+					requirements: [{ item: 'Iron', qty: 6 }],
+					rewards: [],
+					seq: 1,
+					label: 'I'
+				}
+			]
+		};
+
+		const results = diffQuestlineQueue([a, b], new Map());
+		const aggregated = aggregateQueueShortfalls(results);
+
+		expect(aggregated).toEqual([
+			{
+				item: 'Iron',
+				needed: 16,
+				have: 0,
+				short: 16,
+				byQuestline: [
+					{
+						questlineName: 'Chain A',
+						short: 10,
+						byQuest: [{ questName: 'Chain A I', seq: 1, label: 'I', short: 10 }]
+					},
+					{
+						questlineName: 'Chain B',
+						short: 6,
+						byQuest: [{ questName: 'Chain B I', seq: 1, label: 'I', short: 6 }]
+					}
+				]
+			}
+		]);
 	});
 });
 
