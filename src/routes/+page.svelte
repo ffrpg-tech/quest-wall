@@ -12,11 +12,14 @@
 		X,
 		Upload,
 		Save,
-		GripVertical
+		GripVertical,
+		Search,
+		TriangleAlert
 	} from '@lucide/svelte';
 	import { canonicalUrl, DEFAULT_DESCRIPTION, SITE_NAME } from '$lib/seo';
 	import {
 		questKey,
+		isQuestlinesData,
 		type InventoryEntry,
 		type QuestlinesData,
 		type Questline
@@ -37,20 +40,34 @@
 		loadInventory,
 		saveInventory,
 		loadQueue,
-		saveQueue
+		saveQueue,
+		loadLastSeenChangelogVersion,
+		loadInventoryBaseline,
+		saveInventoryBaseline
 	} from '$lib/quest/persistence';
+	import { parseChangelog, latestVersion } from '$lib/changelog';
+	import changelogRaw from '../../CHANGELOG.md?raw';
 
 	// TODO: swap in the real Google Form URL once it exists (see
 	// CONTRIBUTING.md / phase-2.5 spec for the fields it should collect).
-	const FEEDBACK_FORM_URL = 'https://forms.gle/PLACEHOLDER';
+	const FEEDBACK_FORM_URL = 'https://forms.gle/CL3nwtDK18LhvoiP7';
 
 	// TODO: swap in the real repo URL once the source is public.
-	const SOURCE_URL = 'https://github.com/PLACEHOLDER/farm-rpg-quest-tracker';
+	const SOURCE_URL = 'https://github.com/farmrpg-tech/quest-wall';
 
 	const LAUNCH_YEAR = 2026;
 	const currentYear = new Date().getFullYear();
 	const copyrightYears =
 		currentYear > LAUNCH_YEAR ? `${LAUNCH_YEAR}-${currentYear}` : `${LAUNCH_YEAR}`;
+
+	const latestChangelogVersion = latestVersion(parseChangelog(changelogRaw));
+	let hasUnseenChangelog = $state(false);
+
+	onMount(() => {
+		hasUnseenChangelog =
+			latestChangelogVersion !== null &&
+			loadLastSeenChangelogVersion() !== latestChangelogVersion;
+	});
 
 	// Answer-engine / GEO framing: short, self-contained Q&A pairs emitted as
 	// FAQPage JSON-LD (not rendered in the visible UI) so an AI assistant
@@ -144,12 +161,58 @@
 	// for where it's generated.
 	let questlines = $state<QuestlinesData>({});
 	let questlinesHydrated = $state(false);
+	let questlinesError = $state(false);
 
 	onMount(async () => {
-		const res = await fetch(`${base}/questlines.json`);
-		questlines = (await res.json()) as QuestlinesData;
-		questlinesHydrated = true;
+		try {
+			const res = await fetch(`${base}/questlines.json`);
+			if (!res.ok) throw new Error(`questlines.json fetch failed: ${res.status}`);
+			const parsed: unknown = await res.json();
+			// Guards against a malformed/short CSV regen (e.g. the scheduled
+			// scrape) shipping bad data straight to players.
+			if (!isQuestlinesData(parsed)) throw new Error('questlines.json failed shape validation');
+			questlines = parsed;
+		} catch (err) {
+			console.error(err);
+			questlinesError = true;
+		} finally {
+			questlinesHydrated = true;
+		}
 	});
+
+	// When the underlying quest CSV was last actually changed (git history of
+	// data/farm_rpg_quests_master.csv), not when this build happened to run —
+	// see scripts/build-questlines.mjs. Best-effort: a missing/malformed meta
+	// file just means the date doesn't render, it's not worth failing over.
+	let csvLastUpdated = $state<string | null>(null);
+
+	onMount(async () => {
+		try {
+			const res = await fetch(`${base}/questlines-meta.json`);
+			if (!res.ok) return;
+			const parsed: unknown = await res.json();
+			if (
+				parsed &&
+				typeof parsed === 'object' &&
+				'csvLastUpdated' in parsed &&
+				typeof parsed.csvLastUpdated === 'string'
+			) {
+				csvLastUpdated = parsed.csvLastUpdated;
+			}
+		} catch (err) {
+			console.error(err);
+		}
+	});
+
+	const csvLastUpdatedLabel = $derived(
+		csvLastUpdated
+			? new Date(csvLastUpdated).toLocaleDateString(undefined, {
+					year: 'numeric',
+					month: 'short',
+					day: 'numeric'
+				})
+			: null
+	);
 
 	const questlineOptions = $derived(
 		Object.values(questlines)
@@ -314,6 +377,10 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 	let completed = new SvelteSet<string>();
 	let hydrated = $state(false);
 
+	// Snapshot of `completed` as of the last inventory paste — see the note on
+	// loadInventoryBaseline in persistence.ts for why this is a set, not a count.
+	let inventoryBaseline = new SvelteSet<string>();
+
 	/** How many quests are marked done within each questline, keyed by questline name. Kept as its own state (updated incrementally by toggleCompleted) rather than a $derived recompute, since re-walking all ~2400 quests across every questline on every single checkbox click would be wasted work — only one questline's count actually changes per toggle. */
 	let completedCountByQuestline = new SvelteMap<string, number>();
 
@@ -348,9 +415,16 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		if (questlinesHydrated && !hydrated) {
 			for (const key of loadCompleted()) completed.add(key);
 			applyCompletedCounts(computeCompletedCounts(completed));
+			for (const key of loadInventoryBaseline()) inventoryBaseline.add(key);
 			hydrated = true;
 		}
 	});
+
+	/** True when a quest has been checked done since the inventory was last pasted —
+	 * only additions count. Unchecking a quest never deducted anything (walkQuestline
+	 * skips completed quests entirely), so it can't make the pasted numbers wrong and
+	 * doesn't need to trigger this. */
+	const inventoryStale = $derived([...completed].some((key) => !inventoryBaseline.has(key)));
 
 	$effect(() => {
 		if (hydrated) saveCompleted(completed);
@@ -368,7 +442,10 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		);
 	}
 
-	/** Quest name -> every (questline, quest) pair with that exact name. The in-game "Completed Quest List" export only gives bare quest names, not which chain they belong to, so a name that happens to exist in more than one questline gets marked done everywhere it appears rather than left ambiguous. */
+	/** Quest name -> every (questline, quest) pair with that exact name. 
+	 * The in-game "Completed Quest List" export only gives bare quest names, 
+	 * not which chain they belong to, so a name that happens to exist in more than 
+	 * one questline gets marked done everywhere it appears rather than left ambiguous. */
 	const questNameIndex = $derived.by(() => {
 		const index = new Map<string, { questlineName: string; questName: string }[]>();
 		for (const g of questlineOptions) {
@@ -383,6 +460,10 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 
 	let completedPasteText = $state('');
 	let completedParseMessage = $state('');
+	// Quest names from the paste that didn't match anything in questlines.json —
+	// surfaced as a copyable list so the player can report them via feedback
+	// instead of the mismatch just silently vanishing into an unmatchedNames count.
+	let unmatchedQuestNames = $state<string[]>([]);
 
 	function handleParseCompleted() {
 		const names = completedPasteText
@@ -391,24 +472,26 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 			.filter((l) => l.length > 0);
 		if (names.length === 0) {
 			completedParseMessage = 'Nothing to parse.';
+			unmatchedQuestNames = [];
 			return;
 		}
 
 		let matchedNames = 0;
-		let unmatchedNames = 0;
+		const unmatched: string[] = [];
 		for (const name of names) {
 			const matches = questNameIndex.get(name);
 			if (!matches) {
-				unmatchedNames++;
+				unmatched.push(name);
 				continue;
 			}
 			matchedNames++;
 			for (const m of matches) completed.add(questKey(m.questlineName, m.questName));
 		}
 		applyCompletedCounts(computeCompletedCounts(completed));
+		unmatchedQuestNames = [...new Set(unmatched)];
 		completedParseMessage =
-			unmatchedNames > 0
-				? `Marked ${matchedNames} quest name${matchedNames === 1 ? '' : 's'} done (${unmatchedNames} name${unmatchedNames === 1 ? '' : 's'} didn't match a known quest).`
+			unmatched.length > 0
+				? `Marked ${matchedNames} quest name${matchedNames === 1 ? '' : 's'} done (${unmatched.length} name${unmatched.length === 1 ? '' : 's'} didn't match a known quest).`
 				: `Marked ${matchedNames} quest${matchedNames === 1 ? '' : 's'} done.`;
 	}
 
@@ -471,6 +554,16 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		diffResults.length > 0 ? aggregateQueueShortfalls(diffResults) : []
 	);
 
+	let shortfallSearch = $state('');
+
+	const filteredShortfallSummary = $derived(
+		shortfallSearch.trim()
+			? shortfallSummary.filter((s) =>
+					s.item.toLowerCase().includes(shortfallSearch.trim().toLowerCase())
+				)
+			: shortfallSummary
+	);
+
 	// ---------- Import modal (paste-based: inventory dump + completed quests) ----------
 
 	type ImportTab = 'inventory' | 'completed';
@@ -501,6 +594,15 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 	function clearCompletedPasteText() {
 		completedPasteText = '';
 		completedParseMessage = '';
+		unmatchedQuestNames = [];
+	}
+
+	let copyUnmatchedMessage = $state('');
+
+	async function copyUnmatchedQuestNames() {
+		await navigator.clipboard.writeText(unmatchedQuestNames.join('\n'));
+		copyUnmatchedMessage = 'Copied!';
+		setTimeout(() => (copyUnmatchedMessage = ''), 2000);
 	}
 
 	function handleParsePaste() {
@@ -517,6 +619,12 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		// Paste overwrites matching item names in the current inventory.
 		inventory = mergeInventory(inventory, parsed);
 		parseMessage = `Parsed ${parsed.size} item${parsed.size === 1 ? '' : 's'}.`;
+
+		// This paste is a resync to ground truth: whatever's completed right
+		// now is now reflected in the pasted numbers, so reset the baseline.
+		inventoryBaseline.clear();
+		for (const key of completed) inventoryBaseline.add(key);
+		saveInventoryBaseline(completed);
 	}
 
 	async function copyScript(script: string) {
@@ -658,9 +766,11 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		</div>
 	</header>
 
-	<section class="grid gap-6 md:grid-cols-2">
+	<section class="grid gap-6 md:h-[100vh] md:grid-cols-2">
 		<!-- Inventory input -->
-		<div class="flex flex-col space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+		<div
+			class="flex min-h-0 flex-col space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700"
+		>
 			<div class="flex items-center justify-between">
 				<h2 class="font-semibold">1. Inventory ({inventory.length})</h2>
 				<div class="flex items-center gap-1">
@@ -685,6 +795,18 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				</div>
 			</div>
 
+			{#if inventoryStale}
+				<div
+					class="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+				>
+					<TriangleAlert size={14} class="mt-0.5 shrink-0" />
+					<span
+						>You've checked off quests since your last inventory paste — re-paste your inventory
+						to keep shortfall numbers accurate.</span
+					>
+				</div>
+			{/if}
+
 			{#if inventory.length > 0}
 				<div class="relative">
 					<input
@@ -705,7 +827,7 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				</div>
 			{/if}
 			<div
-				class="relative min-h-0 max-h-[60vh] flex-1 overflow-auto rounded border border-gray-100 dark:border-gray-700"
+				class="relative min-h-0 max-h-[100vh] flex-1 overflow-auto rounded border border-gray-100 dark:border-gray-700"
 			>
 				<table class="w-full table-fixed text-sm">
 					<thead
@@ -756,7 +878,9 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		</div>
 
 		<!-- Questline picker -->
-		<div class="space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
+		<div
+			class="flex min-h-0 flex-col space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700"
+		>
 			<div class="flex items-center justify-between">
 				<h2 class="font-semibold">2. Questline</h2>
 				<button
@@ -797,45 +921,50 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				{/each}
 			</div>
 
-			<div class="max-h-80 overflow-y-auto rounded border border-gray-100 dark:border-gray-700">
-				<ul data-testid="questline-list">
-					{#each filteredQuestlines as g (g.name)}
-						{@const doneCount = completedCountByQuestline.get(g.name) ?? 0}
-						{@const queued = selectedQuestlineNames.includes(g.name)}
-						<li>
-							<button
-								onclick={() => toggleQueue(g.name)}
-								aria-pressed={queued}
-								title={queued ? 'Click to remove from queue' : 'Click to add to queue'}
-								class="flex w-full cursor-pointer items-center justify-between border-t border-gray-100 p-2 text-left text-sm transition-colors first:border-t-0 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 dark:active:bg-gray-700"
-								class:bg-emerald-50={queued}
-								class:dark:bg-emerald-900={queued}
-								class:hover:bg-emerald-100={queued}
-								class:dark:hover:bg-emerald-800={queued}
-							>
-								<span>{g.name}</span>
-								<span class="text-xs text-gray-400"
-									>{doneCount > 0 ? `${doneCount}/${g.questCount}` : g.questCount}</span
+			<div class="flex min-h-0 flex-1 flex-col gap-3">
+				<div
+					class="min-h-0 flex-1 overflow-y-auto rounded border border-gray-100 dark:border-gray-700"
+				>
+					<ul data-testid="questline-list">
+						{#each filteredQuestlines as g (g.name)}
+							{@const doneCount = completedCountByQuestline.get(g.name) ?? 0}
+							{@const queued = selectedQuestlineNames.includes(g.name)}
+							<li>
+								<button
+									onclick={() => toggleQueue(g.name)}
+									aria-pressed={queued}
+									title={queued ? 'Click to remove from queue' : 'Click to add to queue'}
+									class="flex w-full cursor-pointer items-center justify-between border-t border-gray-100 p-2 text-left text-sm transition-colors first:border-t-0 hover:bg-gray-50 active:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 dark:active:bg-gray-700"
+									class:bg-emerald-50={queued}
+									class:dark:bg-emerald-900={queued}
+									class:hover:bg-emerald-100={queued}
+									class:dark:hover:bg-emerald-800={queued}
 								>
-							</button>
-						</li>
-					{:else}
-						<li class="p-4 text-center text-xs text-gray-400">
-							{questlinesHydrated
-								? 'No questlines match that search/filter.'
-								: 'Loading questlines…'}
-						</li>
-					{/each}
-				</ul>
-			</div>
+									<span>{g.name}</span>
+									<span class="text-xs text-gray-400"
+										>{doneCount > 0 ? `${doneCount}/${g.questCount}` : g.questCount}</span
+									>
+								</button>
+							</li>
+						{:else}
+							<li class="p-4 text-center text-xs text-gray-400">
+								{questlinesError
+									? 'Quest data failed to load — try refreshing.'
+									: questlinesHydrated
+										? 'No questlines match that search/filter.'
+										: 'Loading questlines…'}
+							</li>
+						{/each}
+					</ul>
+				</div>
 
-			{#if selectedQuestlines.length > 0}
-				<div class="space-y-2">
-					<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400">
-						Queue ({selectedQuestlines.length}) — order matters, shared inventory
-					</h3>
-					<ul class="max-h-64 space-y-1 overflow-y-auto pr-1">
-						{#each selectedQuestlines as g, i (g.name)}
+				{#if selectedQuestlines.length > 0}
+					<div class="flex min-h-0 flex-1 flex-col space-y-2">
+						<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400">
+							Queue ({selectedQuestlines.length}) — order matters, shared inventory
+						</h3>
+						<ul class="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
+							{#each selectedQuestlines as g, i (g.name)}
 							<li
 								data-testid="queue-row"
 								draggable="true"
@@ -883,71 +1012,83 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 					</ul>
 				</div>
 			{/if}
+			</div>
 		</div>
 	</section>
 
 	{#if shortfallSummary.length > 0}
-		<section class="space-y-2 rounded-lg border border-gray-200 p-4 dark:border-gray-700">
-			<h2 class="font-semibold">
-				{#if diffResults.length > 1}
-					Shortfall summary — combined across {diffResults.length} questlines
-				{:else}
-					Shortfall summary — {diffResults[0].questlineName}
-				{/if}
-			</h2>
-			{#if diffResults.length > 1}
-				<p class="text-xs text-gray-500 dark:text-gray-400">
-					Since queued questlines share one inventory, an item's total below can come from more than
-					one questline — expand a row to see which questline (and which quest in it) it's from.
-				</p>
-			{/if}
-			<ul class="grid grid-cols-1 gap-x-6 gap-y-1 text-sm sm:grid-cols-3">
-				{#each shortfallSummary as s (s.item)}
-					<li class="border-b border-gray-100 py-1 dark:border-gray-700">
-						<details class="group">
-							<summary
-								class="flex cursor-pointer list-none items-center gap-1 font-medium text-gray-900 dark:text-gray-100"
-							>
-								<ChevronRight
-									size={14}
-									class="shrink-0 transition-transform group-open:rotate-90"
-								/>
-								{s.item}
-							</summary>
-							<div class="mt-1 border-l border-gray-200 pl-4 dark:border-gray-700">
-								<div
-									class="flex justify-between text-xs font-medium text-gray-700 dark:text-gray-300"
-								>
-									<span>Total</span>
-									<span class="tabular-nums text-red-600 dark:text-red-400">−{s.short}</span>
-								</div>
-								<ul class="mt-1 space-y-1 text-xs">
-									{#each s.byQuestline as ql (ql.questlineName)}
-										<li>
-											{#if s.byQuestline.length > 1}
-												<div class="flex justify-between text-gray-700 dark:text-gray-300">
-													<span class="font-medium">{ql.questlineName} subtotal</span>
-													<span class="tabular-nums text-amber-600 dark:text-amber-400"
-														>−{ql.short}</span
-													>
-												</div>
-											{/if}
-											<ul class="space-y-0.5" class:pl-4={s.byQuestline.length > 1}>
-												{#each ql.byQuest as bq (bq.seq)}
-													<li class="flex justify-between text-gray-500 dark:text-gray-400">
-														<span>{bq.label || bq.questName} — {bq.questName}</span>
-														<span class="tabular-nums">−{bq.short}</span>
-													</li>
-												{/each}
-											</ul>
-										</li>
-									{/each}
-								</ul>
-							</div>
-						</details>
-					</li>
-				{/each}
-			</ul>
+		<section class="rounded-lg border border-gray-200 dark:border-gray-700">
+			<details class="group">
+				<summary
+					class="flex cursor-pointer list-none items-center gap-1 p-4 font-semibold text-gray-900 dark:text-gray-100"
+				>
+					<ChevronRight size={16} class="shrink-0 transition-transform group-open:rotate-90" />
+					{#if diffResults.length > 1}
+						Shortfall summary — combined across {diffResults.length} questlines
+					{:else}
+						Shortfall summary — {diffResults[0].questlineName}
+					{/if}
+				</summary>
+				<div class="space-y-2 border-t border-gray-200 p-4 dark:border-gray-700">
+					{#if diffResults.length > 1}
+						<p class="text-xs text-gray-500 dark:text-gray-400">
+							Since queued questlines share one inventory, an item's total below can come from
+							more than one questline.
+						</p>
+					{/if}
+					<div class="relative">
+						<Search
+							size={14}
+							class="pointer-events-none absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+						/>
+						<input
+							type="text"
+							bind:value={shortfallSearch}
+							placeholder="Search items…"
+							class="w-full rounded border border-gray-300 bg-white py-1.5 pl-8 pr-2 text-sm text-gray-900 placeholder-gray-400 focus:border-blue-500 focus:outline-none dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
+						/>
+					</div>
+					{#if filteredShortfallSummary.length === 0}
+						<p class="text-sm text-gray-500 dark:text-gray-400">No items match "{shortfallSearch}".</p>
+					{:else}
+						<ul class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+							{#each filteredShortfallSummary as s (s.item)}
+								<li class="border-b border-gray-100 py-1 dark:border-gray-700">
+									<div class="font-medium text-gray-900 dark:text-gray-100">{s.item}</div>
+									<div
+										class="mt-1 flex justify-between border-l border-gray-200 pl-2 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
+									>
+										<span>Total</span>
+										<span class="tabular-nums text-red-600 dark:text-red-400">−{s.short}</span>
+									</div>
+									<ul class="mt-1 space-y-1 border-l border-gray-200 pl-2 text-xs dark:border-gray-700">
+										{#each s.byQuestline as ql (ql.questlineName)}
+											<li>
+												{#if s.byQuestline.length > 1}
+													<div class="flex justify-between text-gray-700 dark:text-gray-300">
+														<span class="font-medium">{ql.questlineName} subtotal</span>
+														<span class="tabular-nums text-amber-600 dark:text-amber-400"
+															>−{ql.short}</span
+														>
+													</div>
+												{/if}
+												<ul class="space-y-0.5" class:pl-4={s.byQuestline.length > 1}>
+													{#each ql.byQuest as bq (bq.seq)}
+														<li class="flex justify-between text-gray-500 dark:text-gray-400">
+															<span>{bq.label || bq.questName} — {bq.questName}</span>
+															<span class="tabular-nums">−{bq.short}</span>
+														</li>
+													{/each}
+												</ul>
+											</li>
+										{/each}
+									</ul>
+								</li>
+							{/each}
+						</ul>
+					{/if}
+				</div>
+			</details>
 		</section>
 	{/if}
 
@@ -1070,9 +1211,17 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 	<footer
 		class="mt-12 border-t border-gray-200 pt-6 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400"
 	>
-		<p>Made by <strong>kodyy</strong> (in game).</p>
 		<p class="mt-1">
-			This is a <strong>fan project</strong> and will <em>never</em> be monetized. All credit for
+			This is a <strong>fan project</strong> and will <em>never</em> be monetized.
+		</p>
+		<p class="mt-1"> 
+			Built with <strong>AI assistance</strong> — but
+			<span class="font-semibold text-emerald-600 dark:text-emerald-400"
+				>thoroughly tested and validated by humans</span
+			>.
+		</p>
+		<p class="mt-1">
+			All credit for
 			FarmRPG itself goes to its developers —
 			<a
 				href="https://farmrpg.com"
@@ -1080,13 +1229,6 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				rel="noopener noreferrer"
 				class="text-emerald-600 hover:underline dark:text-emerald-400">farmrpg.com</a
 			>.
-		</p>
-		<p class="mt-1">
-			Built with <strong>AI assistance</strong> — the code and layout were AI-generated, but the
-			quest math and data have been
-			<span class="font-semibold text-emerald-600 dark:text-emerald-400"
-				>thoroughly tested and validated by a human</span
-			>, not just shipped as-is.
 		</p>
 		<p class="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
 			<a href={resolve('/about')} class="text-emerald-600 hover:underline dark:text-emerald-400"
@@ -1096,6 +1238,23 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 			<a href={resolve('/credits')} class="text-emerald-600 hover:underline dark:text-emerald-400"
 				>Credits</a
 			>
+			{#if csvLastUpdatedLabel}
+				<span class="text-gray-300 dark:text-gray-600">&middot;</span>
+				<span class="text-gray-500 dark:text-gray-400">Quest data updated {csvLastUpdatedLabel}</span>
+			{/if}
+			<span class="text-gray-300 dark:text-gray-600">&middot;</span>
+			<a
+				href={resolve('/changelog')}
+				class="inline-flex items-center gap-1 text-emerald-600 hover:underline dark:text-emerald-400"
+			>
+				Changelog
+				{#if hasUnseenChangelog}
+					<span
+						class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"
+						aria-label="New changelog entry"
+					></span>
+				{/if}
+			</a>
 			<span class="text-gray-300 dark:text-gray-600">&middot;</span>
 			<a
 				href={SOURCE_URL}
@@ -1104,7 +1263,8 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				class="text-emerald-600 hover:underline dark:text-emerald-400">Source code</a
 			>
 		</p>
-		<p class="mt-2">&copy; {copyrightYears} kodyy</p>
+		<p class="mt-2">&copy; {copyrightYears}  <span class="text-gray-300 dark:text-gray-600">&middot;</span> 
+			Created by kodyy (in-game name in FarmRPG)</p>
 	</footer>
 </div>
 
@@ -1329,6 +1489,31 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 						<span class="text-xs text-gray-500 dark:text-gray-400">{completedParseMessage}</span>
 					{/if}
 				</div>
+				{#if unmatchedQuestNames.length > 0}
+					<div class="mt-3 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950">
+						<div class="mb-1 flex items-center justify-between">
+							<span class="text-xs font-medium text-amber-800 dark:text-amber-300"
+								>{unmatchedQuestNames.length} name{unmatchedQuestNames.length === 1 ? '' : 's'} didn't
+								match a known quest</span
+							>
+							<button onclick={copyUnmatchedQuestNames} class={buttonClass('link')}>
+								{copyUnmatchedMessage || 'Copy list'}
+							</button>
+						</div>
+						<pre class="max-h-32 overflow-y-auto rounded bg-gray-900 p-2 text-xs text-gray-100"><code
+								>{unmatchedQuestNames.join('\n')}</code
+							></pre>
+						<p class="mt-2 text-xs text-amber-800 dark:text-amber-300">
+							These might be missing from the quest data. Copy the list above and paste it into the
+							<a
+								href={FEEDBACK_FORM_URL}
+								target="_blank"
+								rel="noopener noreferrer"
+								class="font-medium underline">feedback form</a
+							> so they can get added.
+						</p>
+					</div>
+				{/if}
 			{/if}
 		</div>
 	</div>

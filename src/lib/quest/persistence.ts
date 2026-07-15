@@ -4,6 +4,8 @@ const STORAGE_KEY = 'farmrpg-quest-tracker:completed-v1';
 const DARK_MODE_KEY = 'farmrpg-quest-tracker:dark-mode';
 const INVENTORY_KEY = 'farmrpg-quest-tracker:inventory-v1';
 const QUEUE_KEY = 'farmrpg-quest-tracker:queue-v1';
+const INVENTORY_BASELINE_KEY = 'farmrpg-quest-tracker:inventory-baseline-completed-v1';
+const CHANGELOG_SEEN_KEY = 'farmrpg-quest-tracker:changelog-seen-v1';
 const EXPORT_VERSION = 1;
 
 function hasLocalStorage(): boolean {
@@ -46,6 +48,19 @@ export function saveCompleted(completed: Set<string>): void {
 	saveJSON(STORAGE_KEY, Array.from(completed));
 }
 
+/** Snapshot of `completed` at the moment the inventory was last pasted — lets the UI
+ * detect quests checked off since then (a real-world consumption the pasted inventory
+ * doesn't reflect yet). Deliberately a set, not a count: a count can't distinguish
+ * "checked a new quest" from "checked one, unchecked another" since both leave the
+ * size unchanged, so staleness must be computed by membership, not cardinality. */
+export function loadInventoryBaseline(): Set<string> {
+	return new Set(loadJSONArray(INVENTORY_BASELINE_KEY, isString));
+}
+
+export function saveInventoryBaseline(completed: Set<string>): void {
+	saveJSON(INVENTORY_BASELINE_KEY, Array.from(completed));
+}
+
 /** Falls back to the OS/browser preference when nothing has been saved yet. */
 export function loadDarkMode(): boolean {
 	if (!hasLocalStorage()) return false;
@@ -86,6 +101,17 @@ export function loadQueue(): string[] {
 
 export function saveQueue(queue: string[]): void {
 	saveJSON(QUEUE_KEY, queue);
+}
+
+/** Null means "never viewed the changelog" — every real version is a non-empty string. */
+export function loadLastSeenChangelogVersion(): string | null {
+	if (!hasLocalStorage()) return null;
+	return window.localStorage.getItem(CHANGELOG_SEEN_KEY);
+}
+
+export function saveLastSeenChangelogVersion(version: string): void {
+	if (!hasLocalStorage()) return;
+	window.localStorage.setItem(CHANGELOG_SEEN_KEY, version);
 }
 
 export interface ProgressExport {
