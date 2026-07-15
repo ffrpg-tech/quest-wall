@@ -12,6 +12,7 @@
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { execFileSync } from 'node:child_process';
 import path from 'node:path';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -19,7 +20,28 @@ const ROOT = path.resolve(__dirname, '..');
 const CSV_PATH = path.join(ROOT, 'data/farm_rpg_quests_master.csv');
 const OUT_PATH = path.join(ROOT, 'static/questlines.json');
 const ITEMS_OUT_PATH = path.join(ROOT, 'src/lib/data/items.json');
+const META_OUT_PATH = path.join(ROOT, 'static/questlines-meta.json');
 const REPORT_PATH = path.join(__dirname, 'grouping-report.txt');
+
+/**
+ * Reads the CSV's last real content-change date from git history rather than
+ * "now" — so re-running this script without an actual CSV change doesn't
+ * falsely bump a displayed "last updated" date. Falls back to null (e.g. a
+ * shallow clone with no history for the file) so the caller can just omit
+ * the date rather than show a wrong one.
+ */
+function csvLastUpdated() {
+	try {
+		const iso = execFileSync(
+			'git',
+			['log', '-1', '--format=%aI', '--', CSV_PATH],
+			{ cwd: ROOT, encoding: 'utf-8' }
+		).trim();
+		return iso || null;
+	} catch {
+		return null;
+	}
+}
 
 // ---------- CSV parsing (RFC4180-ish: quoted fields, doubled quotes, embedded commas/newlines) ----------
 
@@ -268,6 +290,12 @@ function main() {
 	const sortedItems = Array.from(itemNames).sort((a, b) => a.localeCompare(b));
 	writeFileSync(ITEMS_OUT_PATH, JSON.stringify(sortedItems, null, 2), 'utf-8');
 
+	writeFileSync(
+		META_OUT_PATH,
+		JSON.stringify({ csvLastUpdated: csvLastUpdated() }, null, 2),
+		'utf-8'
+	);
+
 	// ---------- Report for manual spot-check ----------
 	const chains = Object.values(questlines)
 		.filter((g) => g.questCount > 1)
@@ -301,6 +329,7 @@ function main() {
 		`Wrote ${path.relative(ROOT, ITEMS_OUT_PATH)} (${sortedItems.length} unique item names)`
 	);
 	console.log(`Wrote ${path.relative(ROOT, REPORT_PATH)} for spot-checking`);
+	console.log(`Wrote ${path.relative(ROOT, META_OUT_PATH)}`);
 }
 
 main();
