@@ -47,7 +47,7 @@
 				tested the calculator, and gave feedback:
 			</p>
 			<ol class="mt-1 list-decimal space-y-1 pl-5">
-				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Erisere</span> — shared their stored quest data via CSV and helped test the calculator.</li>
+				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Erisere</span> — shared their stored quest data via CSV to initialize the data and helped test the calculator.</li>
 			</ol>
 		</div>
 
@@ -93,7 +93,7 @@
 		<div>
 			<h2 class="font-semibold text-gray-900 dark:text-gray-100">Staff approval</h2>
 			<p class="mt-1">
-				Thank you to the <strong>FarmRPG staff</strong> who reviewed and approved this site before it
+				Thank you to FarmRPG Staff <strong>coderanger</strong>, who reviewed and approved this site before it
 				went live.
 			</p>
 		</div>
