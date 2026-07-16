@@ -9,6 +9,17 @@ the page parses this file directly, so an entry added here is what users see.
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-07-16
+
+### Changed
+
+- Importing your inventory no longer needs a browser-console script — select all the text on your Inventory page and paste it in directly.
+- Importing completed quests works the same way now — select all the text on your Help Needed > Completed page and paste it in, no console script needed.
+- Quest rewards are no longer tracked, reflecting a change in the underlying quest data.
+- Silver now shows up as a requirement on quests that need it.
+- The small per-quest label badge (e.g. "II", "Part 2") is replaced by its position number in the chain.
+- The "MAX ON HAND" storage-cap indicator is no longer conflated with the separate "Mastered"/"Grand Mastered" crafting indicators.
+
 ## [0.1.1] - 2026-07-16
 
 ### Added
