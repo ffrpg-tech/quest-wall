@@ -11,40 +11,18 @@ header. It opens a short form — pick "Incorrect quest data" or "Missing
 quest/questline" and describe what's wrong. No account or git knowledge
 needed.
 
-## Submitting a fix via pull request
+## Reporting bad quest or item data
 
-`data/farm_rpg_quests_master.csv` is the source of truth for all quest data.
-`static/questlines.json` and `src/lib/data/items.json` are
-**generated** from it — never hand-edit those files directly.
+`static/questlines.json` and `src/lib/data/items.json` are **generated and
+not committed to this repo** — quest/item data isn't something contributors
+edit directly via pull request. If you spot wrong data, missing quests, or
+a questline that's grouped/ordered incorrectly, please use the in-app
+**Feedback / report an issue** button described above rather than opening a
+PR that touches those files.
 
-1. Edit `data/farm_rpg_quests_master.csv` with your correction/addition.
-2. Regenerate the derived data:
-   ```
-   node scripts/build-questlines.mjs
-   ```
-3. Check `scripts/grouping-report.txt` for the questline(s) you touched —
-   confirm the chain groups the way you'd expect (correct order, no quests
-   split into a separate singleton by mistake).
-4. Confirm the questline/quest counts printed by the script haven't shifted
-   in a way you didn't intend. As of this writing the baseline is ~2359
-   quests → ~529 questlines; a big unexpected jump usually means a grouping
-   regression, not new data.
-5. Open a PR with your CSV change and the regenerated JSON files together.
+### Behavior worth knowing about (not bugs)
 
-### Known edge cases to watch for
-
-- Questline grouping strips a trailing sequence marker (roman numeral,
-  `Part NN`, `- <Letter>`, trailing digits) to compute the grouping key —
-  verify against real chains like "99 Bottles", "Corn of Interest", or
-  "Blizzard Warning" rather than assuming a change is safe.
-- The CSV sometimes has raw `<br/>`/`<br>` HTML embedded in quest names;
-  this gets stripped to a space automatically. If you see literal `<br`
-  text in the app, that's a parsing bug worth reporting, not something to
-  fix by hand in the CSV.
-- Silver (in-game currency) is genuinely absent from the item list — it
-  never appears as a quest requirement/reward in the source data. This is
-  expected, not a bug to "fix."
-
-There's no automated CI validation for data PRs yet — review is manual
-(the steps above). If PR volume ever grows enough to justify it, that's a
-possible future addition, not something to build preemptively.
+- Silver (in-game currency) shows up as a requirement on some quests — this
+  is expected and correct, not leftover test data.
+- A quest that isn't part of any named chain shows up as its own
+  single-quest "questline" — that's intentional, not a grouping bug.

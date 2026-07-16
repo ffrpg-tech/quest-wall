@@ -15,31 +15,42 @@ be monetized.
 
 ## Data pipeline (read before touching quest/item data)
 
-- `data/farm_rpg_quests_master.csv` is the source of truth. `static/questlines.json`
-  and `src/lib/data/items.json` are **generated** — never hand-edit them.
+- `static/questlines.json` and `src/lib/data/items.json` are **generated,
+  not committed to this repo** — see the maintainer for how to regenerate
+  them locally; don't hand-edit them, and don't add a committed data-fetch
+  script or credentials back into version control without checking first.
   `questlines.json` lives under `static/` (not `src/lib/data/`) and is
-  `fetch()`-ed by the client at runtime rather than statically imported, so it
-  ships as its own cacheable request instead of bloating the page's JS bundle
-  — see `_headers` (project root) for the cache headers. Don't switch it back to a static
-  import without re-solving that egress problem some other way.
-- Regenerate with `node scripts/build-questlines.mjs` after any CSV change.
-  It also writes `scripts/grouping-report.txt` for spot-checking questline
-  grouping against the raw CSV.
-- Current baseline: 2359 quests → 529 questlines (299 real chains, 230
-  singletons). Re-run the script after any change to `splitQuestName` /
-  `sanitizeQuestName` and confirm these counts don't unexpectedly shift.
-- Questline grouping strips a trailing sequence marker (roman numeral,
-  `Part NN`, `- <Letter>`, or trailing digits) off the quest name to compute
-  a grouping key + numeric sort key. If you touch this logic, verify against
-  real chains in the report (e.g. "99 Bottles", "Corn of Interest", "Blizzard
-  Warning") rather than assuming — false-positive roman numerals and
-  dash-letter edge cases are easy to introduce silently.
-- **Silver (currency) is genuinely absent from `items.json`** — it never
-  appears as a quest requirement/reward line in the source CSV. This is a
-  property of the data, not a parsing bug. Don't "fix" it.
-- The CSV has raw `<br/>`/`<br>` HTML embedded in some quest names;
-  `sanitizeQuestName` strips these to a space. If quest names ever show
-  literal `<br` again, the fix belongs in that function, not in the UI layer.
+  `fetch()`-ed by the client at runtime rather than statically imported, so
+  it ships as its own cacheable request instead of bloating the page's JS
+  bundle — see `_headers` (project root) for the cache headers. Don't switch
+  it back to a static import without re-solving that egress problem some
+  other way.
+- Questline grouping/ordering and quest identity come from an external
+  source's own structure now — there is no more Roman-numeral/`Part NN`/
+  letter-suffix title parsing (`splitQuestName`/`sanitizeQuestName` are gone
+  along with the old CSV pipeline). A quest belonging to multiple questlines
+  gets a full `Quest` object denormalized into each questline's `quests[]`,
+  same as before. Titles that wrap onto a second line upstream can carry a
+  literal `<br/>`, which must be sanitized to a space wherever titles are
+  produced — don't reintroduce the raw `<br/>` into `Quest.name`.
+- **Rewards are gone.** Quests no longer carry a rewards concept in the
+  current data source — `Quest.rewards` has been removed from the type
+  entirely, and `diff.ts`'s old reward-crediting step is gone with it. Don't
+  reintroduce a `rewards` field without confirming the upstream source
+  actually has an equivalent.
+- **Silver is now tracked**: a per-quest silver requirement is folded into a
+  synthetic `{item: "Silver", qty: requiredSilver}` requirement alongside
+  real item requirements, so it participates in shortfall tracking like any
+  other item. (Previously silver was absent from the CSV entirely — this is
+  a real behavior change, not a bug if you see "Silver" show up as a
+  requirement now.)
+- `Quest.label` is gone (it was purely derived from the old title parsing).
+  The UI shows `seq` (the upstream ordering value) instead of a parsed
+  "II"/"Part 2"-style badge.
+- Some quests aren't part of any named chain at all (one-off requests) —
+  these are grouped under their own title as a singleton questline rather
+  than dropped, so every quest that exists ends up somewhere in
+  `questlines.json`.
 
 ## Svelte / Tailwind gotchas specific to this repo
 
@@ -67,9 +78,9 @@ be monetized.
 - `diffQuestlineQueue(questlines, startingInventory, completed)` clones the
   inventory **once** and threads that same mutated `Map` through every
   questline in array order via `walkQuestline` — whichever questline is
-  earlier in the queue gets first claim on scarce shared items and on
-  rewards earned along the way. This is intentionally ordering-dependent;
-  don't "fix" it to diff each questline independently.
+  earlier in the queue gets first claim on scarce shared items. This is
+  intentionally ordering-dependent; don't "fix" it to diff each questline
+  independently.
 - `aggregateQueueShortfalls(results)` rolls up each questline's already-
   computed `totalShortfalls` into one queue-wide per-item breakdown
   (`byQuestline` → `byQuest`), without re-walking any inventory.

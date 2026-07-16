@@ -12,15 +12,14 @@ monetized. All credit for FarmRPG itself goes to its developers.
 
 ## How it works
 
-1. Run a small browser-console scraper script on FarmRPG's own Inventory page
-   (walked through in-app via the "How do I get my inventory?" tutorial modal)
-   to copy your inventory to the clipboard as tab-separated text.
+1. Select all the text on FarmRPG's own Inventory page (browser Ctrl/Cmd+A,
+   or the Steam client's Edit > Select All) and copy it — walked through
+   in-app via the "How do I get my inventory?" tutorial modal.
 2. Paste that text into the Inventory box on this site and parse it.
 3. Pick one or more questlines from the scrollable, filterable list to build a
    queue — order matters and can be changed by drag-and-drop, since queued
    questlines share one simulated inventory (whichever questline is first in
-   the queue gets first claim on scarce shared items and on rewards earned
-   along the way).
+   the queue gets first claim on scarce shared items).
 4. The app walks each queued questline's quests in order, decrementing the
    shared simulated inventory as each quest's requirements are consumed, and
    reports the first quest in each chain where you don't have enough on hand.
@@ -28,29 +27,31 @@ monetized. All credit for FarmRPG itself goes to its developers.
    the whole queue, broken down by questline and quest.
 5. Mark quests done as you complete them — progress, inventory, and the
    questline queue are all saved to `localStorage` and progress can be
-   exported/imported as JSON.
+   exported/imported as JSON. You can also paste your completed-requests list
+   the same way to bulk-mark quests done.
 
-Quest and item data (`static/questlines.json`, `src/lib/data/items.json`)
-is generated at build time from a CSV export of the quest database — see
-[Regenerating quest data](#regenerating-quest-data) below. `questlines.json`
-lives under `static/` (not `src/lib/data/`) and is fetched by the client at
-runtime rather than bundled into the page's JS, so it ships as its own
-cacheable request — see `_headers` for the cache headers.
+Quest and item data (`static/questlines.json`, `src/lib/data/items.json`) is
+generated and **not committed to this repo**. `questlines.json` lives under
+`static/` (not `src/lib/data/`) and is fetched by the client at runtime
+rather than bundled into the page's JS, so it ships as its own cacheable
+request — see `_headers` for the cache headers.
 
 ## Project structure
 
 ```
 src/lib/quest/
   types.ts          Shared types (Quest, Questline, InventoryEntry) + questKey()
-  inventory.ts       Parses the clipboard inventory dump, merges updates into inventory state
+  inventory.ts       Parses a pasted inventory-page paste into structured items, merges into state
+  completed.ts        Parses a pasted "Completed Requests" paste into a list of quest names
   diff.ts             Core calculation: walks questline(s) against inventory, finds the wall point(s);
                       diffQuestline (single) and diffQuestlineQueue/aggregateQueueShortfalls (queue)
   persistence.ts     localStorage read/write for completed-quest tracking, inventory, questline
                       queue, dark mode, JSON export/import
 static/
-  questlines.json    Generated — quests grouped into questlines, fetched by the client at runtime
+  questlines.json    Generated, not committed — quests grouped into questlines, fetched by the
+                      client at runtime
 src/lib/data/
-  items.json          Generated — all known item names (for autosuggest/validation)
+  items.json          Generated, not committed — all known item names (for autosuggest/validation)
 src/lib/
   seo.ts              Site metadata constants + canonicalUrl() helper, used for meta tags/JSON-LD
 src/routes/
@@ -59,10 +60,6 @@ src/routes/
   about/+page.svelte   Static "about" page
   credits/+page.svelte Static credits/acknowledgements page
   layout.css           Tailwind entry + dark mode variant
-scripts/
-  build-questlines.mjs  Node script that generates the two data/ JSON files from the source CSV
-data/
-  farm_rpg_quests_master.csv  Source of truth quest database (not committed data pipeline output)
 ```
 
 ## Developing
@@ -77,21 +74,12 @@ npm run dev
 npm run dev -- --open
 ```
 
-## Regenerating quest data
+## Quest data
 
-If `data/farm_rpg_quests_master.csv` changes, regenerate the derived JSON:
-
-```sh
-node scripts/build-questlines.mjs
-```
-
-This writes `static/questlines.json`, `src/lib/data/items.json`, and
-`scripts/grouping-report.txt` (a human-readable dump of every detected
-questline chain, for spot-checking the grouping logic against the raw CSV).
-
-Note: currency (e.g. "Silver") never appears in `items.json` because it never
-appears as a quest requirement/reward line item in the source CSV — that's a
-property of the data, not a bug in the script.
+`static/questlines.json` and `src/lib/data/items.json` are generated and not
+committed to this repo — see the maintainer for details on regenerating
+them. Note: "Silver" (in-game currency) does show up as an item requirement
+on some quests — that's expected, not a data bug.
 
 ## Testing & checks
 
