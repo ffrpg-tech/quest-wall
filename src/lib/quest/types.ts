@@ -4,14 +4,12 @@ export interface ItemQty {
 }
 
 export interface Quest {
+	id?: number;
 	name: string;
-	from: string;
 	startDate: string;
 	endDate: string;
 	requirements: ItemQty[];
-	rewards: ItemQty[];
 	seq: number;
-	label: string;
 }
 
 export interface Questline {
@@ -43,16 +41,13 @@ function isQuest(v: unknown): v is Quest {
 	if (!v || typeof v !== 'object') return false;
 	const q = v as Quest;
 	return (
+		(q.id === undefined || typeof q.id === 'number') &&
 		typeof q.name === 'string' &&
-		typeof q.from === 'string' &&
 		typeof q.startDate === 'string' &&
 		typeof q.endDate === 'string' &&
 		Array.isArray(q.requirements) &&
 		q.requirements.every(isItemQty) &&
-		Array.isArray(q.rewards) &&
-		q.rewards.every(isItemQty) &&
-		typeof q.seq === 'number' &&
-		typeof q.label === 'string'
+		typeof q.seq === 'number'
 	);
 }
 

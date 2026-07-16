@@ -10,7 +10,6 @@ export interface ItemShortfall {
 export interface QuestDiffResult {
 	questName: string;
 	seq: number;
-	label: string;
 	shortfalls: ItemShortfall[];
 	ok: boolean;
 	/** True when the player has already marked this quest done — its requirements are neither checked against nor deducted from the simulated inventory, since that consumption already happened before this inventory snapshot was taken. */
@@ -21,7 +20,6 @@ export interface QuestDiffResult {
 export interface QuestShortfallShare {
 	questName: string;
 	seq: number;
-	label: string;
 	short: number;
 }
 
@@ -48,9 +46,9 @@ export interface QuestlineDiffResult {
 
 /**
  * Walks a questline's quests in order against `inv`, mutating it in place as
- * requirements are consumed and rewards are credited. Shared by
- * `diffQuestline` (single questline, private clone) and `diffQuestlineQueue`
- * (multiple questlines threaded through the same shared inventory).
+ * requirements are consumed. Shared by `diffQuestline` (single questline,
+ * private clone) and `diffQuestlineQueue` (multiple questlines threaded
+ * through the same shared inventory).
  */
 function walkQuestline(
 	questline: Questline,
@@ -68,7 +66,6 @@ function walkQuestline(
 			quests.push({
 				questName: q.name,
 				seq: q.seq,
-				label: q.label,
 				shortfalls: [],
 				ok: true,
 				done: true
@@ -95,14 +92,14 @@ function walkQuestline(
 					// share rather than pushing a duplicate row.
 					const share = existing.byQuest.find((b) => b.seq === q.seq);
 					if (share) share.short += short;
-					else existing.byQuest.push({ questName: q.name, seq: q.seq, label: q.label, short });
+					else existing.byQuest.push({ questName: q.name, seq: q.seq, short });
 				} else {
 					totalShortfallMap.set(req.item, {
 						item: req.item,
 						needed: req.qty,
 						have,
 						short,
-						byQuest: [{ questName: q.name, seq: q.seq, label: q.label, short }]
+						byQuest: [{ questName: q.name, seq: q.seq, short }]
 					});
 				}
 			}
@@ -112,14 +109,7 @@ function walkQuestline(
 			inv.set(req.item, Math.max(0, have - req.qty));
 		}
 
-		// Credit rewards after requirements are decremented, for every simulated
-		// quest regardless of shortfall — mirrors the "always decrement" rule
-		// above so a later quest can benefit from an earlier quest's reward.
-		for (const rew of q.rewards) {
-			inv.set(rew.item, (inv.get(rew.item) ?? 0) + rew.qty);
-		}
-
-		quests.push({ questName: q.name, seq: q.seq, label: q.label, shortfalls, ok, done: false });
+		quests.push({ questName: q.name, seq: q.seq, shortfalls, ok, done: false });
 		if (!ok && wallPointIndex === null) wallPointIndex = i;
 	}
 
@@ -148,8 +138,8 @@ export function diffQuestline(
 /**
  * Diffs multiple questlines against one shared inventory, threading the same
  * mutated inventory between them in array order. Whichever questline runs
- * first gets first claim on scarce shared items (and on rewards earned along
- * the way), so results are ordering-dependent by design.
+ * first gets first claim on scarce shared items, so results are
+ * ordering-dependent by design.
  */
 export function diffQuestlineQueue(
 	questlines: Questline[],

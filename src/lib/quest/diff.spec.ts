@@ -1,6 +1,5 @@
 import { describe, it, expect } from 'vitest';
 import { aggregateQueueShortfalls, diffQuestline, diffQuestlineQueue } from './diff';
-import { parseInventoryDump } from './inventory';
 import { questKey, type Questline } from './types';
 
 const questline: Questline = {
@@ -9,33 +8,24 @@ const questline: Questline = {
 	quests: [
 		{
 			name: 'Test Chain I',
-			from: 'NPC',
 			startDate: '',
 			endDate: '',
 			requirements: [{ item: 'Wood', qty: 5 }],
-			rewards: [],
-			seq: 1,
-			label: 'I'
+			seq: 1
 		},
 		{
 			name: 'Test Chain II',
-			from: 'NPC',
 			startDate: '',
 			endDate: '',
 			requirements: [{ item: 'Wood', qty: 10 }],
-			rewards: [],
-			seq: 2,
-			label: 'II'
+			seq: 2
 		},
 		{
 			name: 'Test Chain III',
-			from: 'NPC',
 			startDate: '',
 			endDate: '',
 			requirements: [{ item: 'Wood', qty: 1 }],
-			rewards: [],
-			seq: 3,
-			label: 'III'
+			seq: 3
 		}
 	]
 };
@@ -70,8 +60,8 @@ describe('diffQuestline', () => {
 				have: 7,
 				short: 4,
 				byQuest: [
-					{ questName: 'Test Chain II', seq: 2, label: 'II', short: 3 },
-					{ questName: 'Test Chain III', seq: 3, label: 'III', short: 1 }
+					{ questName: 'Test Chain II', seq: 2, short: 3 },
+					{ questName: 'Test Chain III', seq: 3, short: 1 }
 				]
 			}
 		]);
@@ -103,74 +93,6 @@ describe('diffQuestline', () => {
 		expect(result.quests[1].shortfalls).toEqual([{ item: 'Wood', needed: 10, have: 6, short: 4 }]);
 		expect(result.wallPointIndex).toBe(1);
 	});
-
-	it('credits an earlier quest reward toward a later quest requirement', () => {
-		const rewardChain: Questline = {
-			name: 'Reward Chain',
-			questCount: 2,
-			quests: [
-				{
-					name: 'Reward Chain I',
-					from: 'NPC',
-					startDate: '',
-					endDate: '',
-					requirements: [],
-					rewards: [{ item: 'Iron', qty: 5 }],
-					seq: 1,
-					label: 'I'
-				},
-				{
-					name: 'Reward Chain II',
-					from: 'NPC',
-					startDate: '',
-					endDate: '',
-					requirements: [{ item: 'Iron', qty: 5 }],
-					rewards: [],
-					seq: 2,
-					label: 'II'
-				}
-			]
-		};
-
-		const result = diffQuestline(rewardChain, new Map());
-		expect(result.quests[1].ok).toBe(true);
-		expect(result.quests[1].shortfalls).toEqual([]);
-		expect(result.wallPointIndex).toBeNull();
-	});
-
-	it('does not double-credit rewards for a quest already marked complete', () => {
-		const rewardChain: Questline = {
-			name: 'Reward Chain',
-			questCount: 2,
-			quests: [
-				{
-					name: 'Reward Chain I',
-					from: 'NPC',
-					startDate: '',
-					endDate: '',
-					requirements: [],
-					rewards: [{ item: 'Iron', qty: 5 }],
-					seq: 1,
-					label: 'I'
-				},
-				{
-					name: 'Reward Chain II',
-					from: 'NPC',
-					startDate: '',
-					endDate: '',
-					requirements: [{ item: 'Iron', qty: 5 }],
-					rewards: [],
-					seq: 2,
-					label: 'II'
-				}
-			]
-		};
-
-		const completedSet = new Set([questKey('Reward Chain', 'Reward Chain I')]);
-		const result = diffQuestline(rewardChain, new Map(), completedSet);
-		expect(result.quests[1].ok).toBe(false);
-		expect(result.quests[1].shortfalls).toEqual([{ item: 'Iron', needed: 5, have: 0, short: 5 }]);
-	});
 });
 
 describe('diffQuestlineQueue', () => {
@@ -180,13 +102,10 @@ describe('diffQuestlineQueue', () => {
 		quests: [
 			{
 				name: `${name} I`,
-				from: 'NPC',
 				startDate: '',
 				endDate: '',
 				requirements: [{ item: 'Iron', qty: 10 }],
-				rewards: [],
-				seq: 1,
-				label: 'I'
+				seq: 1
 			}
 		]
 	});
@@ -221,13 +140,10 @@ describe('aggregateQueueShortfalls', () => {
 			quests: [
 				{
 					name: 'Chain A I',
-					from: 'NPC',
 					startDate: '',
 					endDate: '',
 					requirements: [{ item: 'Iron', qty: 10 }],
-					rewards: [],
-					seq: 1,
-					label: 'I'
+					seq: 1
 				}
 			]
 		};
@@ -237,13 +153,10 @@ describe('aggregateQueueShortfalls', () => {
 			quests: [
 				{
 					name: 'Chain B I',
-					from: 'NPC',
 					startDate: '',
 					endDate: '',
 					requirements: [{ item: 'Iron', qty: 6 }],
-					rewards: [],
-					seq: 1,
-					label: 'I'
+					seq: 1
 				}
 			]
 		};
@@ -261,39 +174,15 @@ describe('aggregateQueueShortfalls', () => {
 					{
 						questlineName: 'Chain A',
 						short: 10,
-						byQuest: [{ questName: 'Chain A I', seq: 1, label: 'I', short: 10 }]
+						byQuest: [{ questName: 'Chain A I', seq: 1, short: 10 }]
 					},
 					{
 						questlineName: 'Chain B',
 						short: 6,
-						byQuest: [{ questName: 'Chain B I', seq: 1, label: 'I', short: 6 }]
+						byQuest: [{ questName: 'Chain B I', seq: 1, short: 6 }]
 					}
 				]
 			}
 		]);
-	});
-});
-
-describe('parseInventoryDump', () => {
-	it('parses category/name/qty tab-separated rows', () => {
-		const parsed = parseInventoryDump('Meals\tAcorn Pie\t5\nItems\tAmethyst\t908');
-		expect(parsed.get('Acorn Pie')).toEqual({ item: 'Acorn Pie', qty: 5, maxed: false });
-		expect(parsed.get('Amethyst')).toEqual({ item: 'Amethyst', qty: 908, maxed: false });
-	});
-
-	it('parses a bare name/qty row', () => {
-		const parsed = parseInventoryDump('Wood\t42');
-		expect(parsed.get('Wood')).toEqual({ item: 'Wood', qty: 42, maxed: false });
-	});
-
-	it('skips malformed lines instead of throwing', () => {
-		const parsed = parseInventoryDump('not a valid row\n\nMeals\tAcorn Pie\t5');
-		expect(parsed.size).toBe(1);
-		expect(parsed.get('Acorn Pie')?.qty).toBe(5);
-	});
-
-	it('detects a trailing MAX flag', () => {
-		const parsed = parseInventoryDump('Items\tIron\t966\tMAX');
-		expect(parsed.get('Iron')?.maxed).toBe(true);
 	});
 });

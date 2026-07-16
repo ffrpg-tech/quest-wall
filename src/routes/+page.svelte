@@ -24,7 +24,14 @@
 		type QuestlinesData,
 		type Questline
 	} from '$lib/quest/types';
-	import { parseInventoryDump, inventoryToMap, mergeInventory } from '$lib/quest/inventory';
+	import {
+		parseInventoryPaste,
+		InventoryParseError,
+		toInventoryEntries,
+		inventoryToMap,
+		mergeInventory
+	} from '$lib/quest/inventory';
+	import { parseCompletedQuestNames, CompletedQuestParseError } from '$lib/quest/completed';
 	import {
 		aggregateQueueShortfalls,
 		diffQuestlineQueue,
@@ -65,8 +72,7 @@
 
 	onMount(() => {
 		hasUnseenChangelog =
-			latestChangelogVersion !== null &&
-			loadLastSeenChangelogVersion() !== latestChangelogVersion;
+			latestChangelogVersion !== null && loadLastSeenChangelogVersion() !== latestChangelogVersion;
 	});
 
 	// Answer-engine / GEO framing: short, self-contained Q&A pairs emitted as
@@ -91,7 +97,7 @@
 		{
 			question: 'How do I get my inventory into the calculator?',
 			answer:
-				'Use the "Import data" button, which walks through copying your inventory (or completed quest list) out of FarmRPG with a small console script, then pasting it in here to parse.'
+				'Use the "Import data" button, which walks through selecting and copying your inventory (or completed quest list) directly from the FarmRPG page, then pasting it in here to parse.'
 		},
 		{
 			question: 'Does it save my progress?',
@@ -157,7 +163,7 @@
 
 	// Fetched as a static asset (rather than imported) so it ships as its own
 	// cacheable request instead of being bundled into this page's JS chunk —
-	// see _headers (project root) for the cache headers and scripts/build-questlines.mjs
+	// see _headers (project root) for the cache headers and api/fetch-questlines.mjs
 	// for where it's generated.
 	let questlines = $state<QuestlinesData>({});
 	let questlinesHydrated = $state(false);
@@ -168,8 +174,8 @@
 			const res = await fetch(`${base}/questlines.json`);
 			if (!res.ok) throw new Error(`questlines.json fetch failed: ${res.status}`);
 			const parsed: unknown = await res.json();
-			// Guards against a malformed/short CSV regen (e.g. the scheduled
-			// scrape) shipping bad data straight to players.
+			// Guards against a malformed/short fetch-script run shipping bad data
+			// straight to players.
 			if (!isQuestlinesData(parsed)) throw new Error('questlines.json failed shape validation');
 			questlines = parsed;
 		} catch (err) {
@@ -180,11 +186,10 @@
 		}
 	});
 
-	// When the underlying quest CSV was last actually changed (git history of
-	// data/farm_rpg_quests_master.csv), not when this build happened to run —
-	// see scripts/build-questlines.mjs. Best-effort: a missing/malformed meta
-	// file just means the date doesn't render, it's not worth failing over.
-	let csvLastUpdated = $state<string | null>(null);
+	// When api/fetch-questlines.mjs last actually ran, not when this build
+	// happened to deploy. Best-effort: a missing/malformed meta file just
+	// means the date doesn't render, it's not worth failing over.
+	let dataLastUpdated = $state<string | null>(null);
 
 	onMount(async () => {
 		try {
@@ -194,19 +199,19 @@
 			if (
 				parsed &&
 				typeof parsed === 'object' &&
-				'csvLastUpdated' in parsed &&
-				typeof parsed.csvLastUpdated === 'string'
+				'dataLastUpdated' in parsed &&
+				typeof parsed.dataLastUpdated === 'string'
 			) {
-				csvLastUpdated = parsed.csvLastUpdated;
+				dataLastUpdated = parsed.dataLastUpdated;
 			}
 		} catch (err) {
 			console.error(err);
 		}
 	});
 
-	const csvLastUpdatedLabel = $derived(
-		csvLastUpdated
-			? new Date(csvLastUpdated).toLocaleDateString(undefined, {
+	const dataLastUpdatedLabel = $derived(
+		dataLastUpdated
+			? new Date(dataLastUpdated).toLocaleDateString(undefined, {
 					year: 'numeric',
 					month: 'short',
 					day: 'numeric'
@@ -227,44 +232,6 @@
 		const trimmed = query.trim();
 		return trimmed === '' || text.toLowerCase().includes(trimmed.toLowerCase());
 	}
-
-	// A plain (non-raw) template literal: backticks are escaped as \` so they
-	// render as literal backticks, and \t / \r\n are double-escaped so they
-	// render as the two literal characters "\t" / "\r\n" (this script's own
-	// string escapes) rather than being turned into real tab/newline bytes.
-	const INVENTORY_SCRAPER_SCRIPT = `$(".page-on-center .page-content").prepend(\`<a href="#" class="button btnpurple" id="copyinventory">Copy Inventory to Clipboard</a>\`)
-document.getElementById("copyinventory").addEventListener("click", async () => {
-    let text = "";
-    let currentCategory = "";
-    $(".list-block-search li").each((i, el) => {
-        let $el = $(el);
-        if ($el.hasClass("list-group-title")) {
-            currentCategory = $el.clone().children().remove().end().text().trim();
-        } else {
-            let name = $el.find(".item-title strong").first().text().trim();
-            let $qty = $el.find(".item-after").first();
-            let qty = $qty.text().trim();
-            let isMax = $qty.attr("style") && $qty.attr("style").includes("color:red") ? "MAX" : "";
-            if (name) text += currentCategory + "\\t" + name + "\\t" + qty + "\\t" + isMax + "\\r\\n";
-        }
-    });
-    text = text.trim();
-    await navigator.clipboard.writeText(text);
-    myApp.alert("Copied to Clipboard", "");
-});`;
-
-	// Same scraper pattern, but for the "Completed Quest List" screen — grabs
-	// just the quest names (that screen has no item/qty columns to capture).
-	const COMPLETED_QUESTS_SCRAPER_SCRIPT = `$(".page-on-center .page-content").prepend(\`<a href="#" class="button btnpurple" id="copytoclipboard">Copy List to Clipboard</a>\`)
-document.getElementById("copytoclipboard").addEventListener("click", async () => {
-    let text = "";
-    $("ul").last().children().each((i, quest) => {
-        text += $(quest).find(".item-title strong").text().trim() + "\\r\\n";
-    });
-    text = text.trim();
-    await navigator.clipboard.writeText(text);
-    myApp.alert("Copied to Clipboard", "");
-});`;
 
 	// ---------- Inventory ----------
 
@@ -442,9 +409,9 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		);
 	}
 
-	/** Quest name -> every (questline, quest) pair with that exact name. 
-	 * The in-game "Completed Quest List" export only gives bare quest names, 
-	 * not which chain they belong to, so a name that happens to exist in more than 
+	/** Quest name -> every (questline, quest) pair with that exact name.
+	 * The in-game "Completed Quest List" export only gives bare quest names,
+	 * not which chain they belong to, so a name that happens to exist in more than
 	 * one questline gets marked done everywhere it appears rather than left ambiguous. */
 	const questNameIndex = $derived.by(() => {
 		const index = new Map<string, { questlineName: string; questName: string }[]>();
@@ -466,12 +433,18 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 	let unmatchedQuestNames = $state<string[]>([]);
 
 	function handleParseCompleted() {
-		const names = completedPasteText
-			.split(/\r?\n/)
-			.map((l) => l.trim())
-			.filter((l) => l.length > 0);
-		if (names.length === 0) {
+		if (!completedPasteText.trim()) {
 			completedParseMessage = 'Nothing to parse.';
+			unmatchedQuestNames = [];
+			return;
+		}
+
+		let names: string[];
+		try {
+			names = parseCompletedQuestNames(completedPasteText);
+		} catch (err) {
+			completedParseMessage =
+				err instanceof CompletedQuestParseError ? err.message : 'Unexpected error parsing paste.';
 			unmatchedQuestNames = [];
 			return;
 		}
@@ -570,7 +543,6 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 	let importModalOpen = $state(false);
 	let importTab = $state<ImportTab>('inventory');
 	let showScraperHelp = $state(false);
-	let copyScriptMessage = $state('');
 
 	let pasteText = $state('');
 	let parseMessage = $state('');
@@ -610,9 +582,13 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 			parseMessage = 'Nothing to parse.';
 			return;
 		}
-		const parsed = parseInventoryDump(pasteText);
-		if (parsed.size === 0) {
-			parseMessage = 'Couldn\'t find any "Name<TAB>Qty" rows in that paste — check the format.';
+
+		let parsed;
+		try {
+			parsed = toInventoryEntries(parseInventoryPaste(pasteText));
+		} catch (err) {
+			parseMessage =
+				err instanceof InventoryParseError ? err.message : 'Unexpected error parsing paste.';
 			return;
 		}
 
@@ -625,12 +601,6 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		inventoryBaseline.clear();
 		for (const key of completed) inventoryBaseline.add(key);
 		saveInventoryBaseline(completed);
-	}
-
-	async function copyScript(script: string) {
-		await navigator.clipboard.writeText(script);
-		copyScriptMessage = 'Copied!';
-		setTimeout(() => (copyScriptMessage = ''), 2000);
 	}
 
 	// ---------- Dark mode ----------
@@ -801,8 +771,8 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				>
 					<TriangleAlert size={14} class="mt-0.5 shrink-0" />
 					<span
-						>You've checked off quests since your last inventory paste — re-paste your inventory
-						to keep shortfall numbers accurate.</span
+						>You've checked off quests since your last inventory paste — re-paste your inventory to
+						keep shortfall numbers accurate.</span
 					>
 				</div>
 			{/if}
@@ -965,53 +935,53 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 						</h3>
 						<ul class="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
 							{#each selectedQuestlines as g, i (g.name)}
-							<li
-								data-testid="queue-row"
-								draggable="true"
-								ondragstart={(e) => {
-									dragFromIndex = i;
-									// Firefox aborts the drag entirely if dataTransfer.setData isn't
-									// called during dragstart — Chromium doesn't enforce this, which is
-									// why this was easy to miss testing only against Chromium.
-									e.dataTransfer?.setData('text/plain', String(i));
-								}}
-								ondragover={(e) => {
-									e.preventDefault();
-									dragOverIndex = i;
-								}}
-								ondragleave={() => {
-									if (dragOverIndex === i) dragOverIndex = null;
-								}}
-								ondrop={() => handleQueueDrop(i)}
-								ondragend={() => {
-									dragFromIndex = null;
-									dragOverIndex = null;
-								}}
-								class="flex items-center justify-between gap-2 rounded border border-gray-100 p-2 text-sm transition-colors dark:border-gray-700"
-								class:opacity-40={dragFromIndex === i}
-								class:border-emerald-400={dragOverIndex === i && dragFromIndex !== i}
-								class:dark:border-emerald-500={dragOverIndex === i && dragFromIndex !== i}
-							>
-								<span class="flex min-w-0 items-center gap-1.5">
-									<GripVertical
-										size={14}
-										class="shrink-0 cursor-grab text-gray-400 active:cursor-grabbing"
-									/>
-									<span class="truncate">{i + 1}. {g.name}</span>
-								</span>
-								<button
-									onclick={() => removeFromQueue(g.name)}
-									aria-label="Remove from queue"
-									title="Remove from queue"
-									class={buttonClass('icon-danger')}
+								<li
+									data-testid="queue-row"
+									draggable="true"
+									ondragstart={(e) => {
+										dragFromIndex = i;
+										// Firefox aborts the drag entirely if dataTransfer.setData isn't
+										// called during dragstart — Chromium doesn't enforce this, which is
+										// why this was easy to miss testing only against Chromium.
+										e.dataTransfer?.setData('text/plain', String(i));
+									}}
+									ondragover={(e) => {
+										e.preventDefault();
+										dragOverIndex = i;
+									}}
+									ondragleave={() => {
+										if (dragOverIndex === i) dragOverIndex = null;
+									}}
+									ondrop={() => handleQueueDrop(i)}
+									ondragend={() => {
+										dragFromIndex = null;
+										dragOverIndex = null;
+									}}
+									class="flex items-center justify-between gap-2 rounded border border-gray-100 p-2 text-sm transition-colors dark:border-gray-700"
+									class:opacity-40={dragFromIndex === i}
+									class:border-emerald-400={dragOverIndex === i && dragFromIndex !== i}
+									class:dark:border-emerald-500={dragOverIndex === i && dragFromIndex !== i}
 								>
-									✕
-								</button>
-							</li>
-						{/each}
-					</ul>
-				</div>
-			{/if}
+									<span class="flex min-w-0 items-center gap-1.5">
+										<GripVertical
+											size={14}
+											class="shrink-0 cursor-grab text-gray-400 active:cursor-grabbing"
+										/>
+										<span class="truncate">{i + 1}. {g.name}</span>
+									</span>
+									<button
+										onclick={() => removeFromQueue(g.name)}
+										aria-label="Remove from queue"
+										title="Remove from queue"
+										class={buttonClass('icon-danger')}
+									>
+										✕
+									</button>
+								</li>
+							{/each}
+						</ul>
+					</div>
+				{/if}
 			</div>
 		</div>
 	</section>
@@ -1032,8 +1002,8 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				<div class="space-y-2 border-t border-gray-200 p-4 dark:border-gray-700">
 					{#if diffResults.length > 1}
 						<p class="text-xs text-gray-500 dark:text-gray-400">
-							Since queued questlines share one inventory, an item's total below can come from
-							more than one questline.
+							Since queued questlines share one inventory, an item's total below can come from more
+							than one questline.
 						</p>
 					{/if}
 					<div class="relative">
@@ -1049,7 +1019,9 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 						/>
 					</div>
 					{#if filteredShortfallSummary.length === 0}
-						<p class="text-sm text-gray-500 dark:text-gray-400">No items match "{shortfallSearch}".</p>
+						<p class="text-sm text-gray-500 dark:text-gray-400">
+							No items match "{shortfallSearch}".
+						</p>
 					{:else}
 						<ul class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
 							{#each filteredShortfallSummary as s (s.item)}
@@ -1061,7 +1033,9 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 										<span>Total</span>
 										<span class="tabular-nums text-red-600 dark:text-red-400">−{s.short}</span>
 									</div>
-									<ul class="mt-1 space-y-1 border-l border-gray-200 pl-2 text-xs dark:border-gray-700">
+									<ul
+										class="mt-1 space-y-1 border-l border-gray-200 pl-2 text-xs dark:border-gray-700"
+									>
 										{#each s.byQuestline as ql (ql.questlineName)}
 											<li>
 												{#if s.byQuestline.length > 1}
@@ -1075,7 +1049,7 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 												<ul class="space-y-0.5" class:pl-4={s.byQuestline.length > 1}>
 													{#each ql.byQuest as bq (bq.seq)}
 														<li class="flex justify-between text-gray-500 dark:text-gray-400">
-															<span>{bq.label || bq.questName} — {bq.questName}</span>
+															<span>{bq.questName}</span>
 															<span class="tabular-nums">−{bq.short}</span>
 														</li>
 													{/each}
@@ -1122,8 +1096,7 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 									<span
 										class="shrink-0 rounded bg-red-50 px-2 py-0.5 text-xs font-medium text-red-700 dark:bg-red-950 dark:text-red-300"
 									>
-										Runs dry at {diffResult.quests[diffResult.wallPointIndex].label ||
-											diffResult.quests[diffResult.wallPointIndex].questName}
+										Runs dry at {diffResult.quests[diffResult.wallPointIndex].questName}
 									</span>
 								{/if}
 							</summary>
@@ -1159,7 +1132,7 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 														class="cursor-pointer"
 													/>
 												</td>
-												<td class="p-2 text-xs text-gray-400">{q.label || '—'}</td>
+												<td class="p-2 text-xs text-gray-400">{q.seq}</td>
 												<td class="p-2" class:line-through={q.done}>{q.questName}</td>
 												<td class="p-2">
 													{#if q.done}
@@ -1214,15 +1187,14 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 		<p class="mt-1">
 			This is a <strong>fan project</strong> and will <em>never</em> be monetized.
 		</p>
-		<p class="mt-1"> 
+		<p class="mt-1">
 			Built with <strong>AI assistance</strong> — but
 			<span class="font-semibold text-emerald-600 dark:text-emerald-400"
 				>thoroughly tested and validated by humans</span
 			>.
 		</p>
 		<p class="mt-1">
-			All credit for
-			FarmRPG itself goes to its developers —
+			All credit for FarmRPG itself goes to its developers —
 			<a
 				href="https://farmrpg.com"
 				target="_blank"
@@ -1238,9 +1210,11 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 			<a href={resolve('/credits')} class="text-emerald-600 hover:underline dark:text-emerald-400"
 				>Credits</a
 			>
-			{#if csvLastUpdatedLabel}
+			{#if dataLastUpdatedLabel}
 				<span class="text-gray-300 dark:text-gray-600">&middot;</span>
-				<span class="text-gray-500 dark:text-gray-400">Quest data updated {csvLastUpdatedLabel}</span>
+				<span class="text-gray-500 dark:text-gray-400"
+					>Quest data updated {dataLastUpdatedLabel}</span
+				>
 			{/if}
 			<span class="text-gray-300 dark:text-gray-600">&middot;</span>
 			<a
@@ -1263,8 +1237,10 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 				class="text-emerald-600 hover:underline dark:text-emerald-400">Source code</a
 			>
 		</p>
-		<p class="mt-2">&copy; {copyrightYears}  <span class="text-gray-300 dark:text-gray-600">&middot;</span> 
-			Created by kodyy (in-game name in FarmRPG)</p>
+		<p class="mt-2">
+			&copy; {copyrightYears} <span class="text-gray-300 dark:text-gray-600">&middot;</span>
+			Created by kodyy (in-game name in FarmRPG)
+		</p>
 	</footer>
 </div>
 
@@ -1362,36 +1338,29 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 					>
 					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
 						<ol class="list-decimal space-y-2 pl-5">
-							<li>Open FarmRPG in your browser, log in, and go to your Inventory screen.</li>
-							<li>Open your browser's developer console (F12, then the "Console" tab).</li>
+							<li>Open FarmRPG (browser, or the Steam client) and go to your Inventory screen.</li>
 							<li>
-								Paste the script below and press Enter. It adds a
-								<strong>"Copy Inventory to Clipboard"</strong> button to the page — click it.
+								Select the whole page — <kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700"
+									>Ctrl+A</kbd
+								>
+								/
+								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or
+								the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+									class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
+								>
+								/
+								<strong>Edit &gt; Copy</strong>).
 							</li>
-							<li>Come back here, paste the clipboard contents below, and click "Parse paste".</li>
+							<li>Come back here, paste the full copied text below, and click "Parse paste".</li>
 						</ol>
-						<div class="mt-3">
-							<div class="mb-1 flex items-center justify-between">
-								<span class="text-xs font-medium text-gray-500 dark:text-gray-400"
-									>Console script</span
-								>
-								<button
-									onclick={() => copyScript(INVENTORY_SCRAPER_SCRIPT)}
-									class={buttonClass('link')}
-								>
-									{copyScriptMessage || 'Copy script'}
-								</button>
-							</div>
-							<pre class="overflow-x-auto rounded bg-gray-900 p-3 text-xs text-gray-100"><code
-									>{INVENTORY_SCRAPER_SCRIPT}</code
-								></pre>
-						</div>
 						<p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
-							The 4th column is empty, or <code class="rounded bg-gray-100 px-1 dark:bg-gray-700"
-								>MAX</code
-							> when that row's quantity is shown in red in-game — meaning that item is sitting at its
-							storage cap. If MAX rows don't all show the same quantity, that's real information: it means
-							the cap is per-category, not global.
+							The parser looks for the inventory section within whatever you paste, so surrounding
+							chat/menu text is fine. Items shown as <code
+								class="rounded bg-gray-100 px-1 dark:bg-gray-700">MAX ON HAND</code
+							> are flagged as maxed (<code class="rounded bg-gray-100 px-1 dark:bg-gray-700"
+								>Mastered</code
+							>/<code class="rounded bg-gray-100 px-1 dark:bg-gray-700">Grand Mastered</code> are a separate
+							crafting indicator and don't affect this). Mobile app pastes aren't supported.
 						</p>
 					</div>
 				</details>
@@ -1400,7 +1369,7 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 					<textarea
 						bind:value={pasteText}
 						rows="6"
-						placeholder="Paste tab-separated dump here: Category&#9;Item Name&#9;Qty"
+						placeholder="Paste the full inventory page text here"
 						class="w-full rounded border border-gray-300 p-2 pr-9 font-mono text-xs dark:border-gray-600 dark:bg-gray-800"
 					></textarea>
 					{#if pasteText}
@@ -1430,38 +1399,29 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 					>
 					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
 						<ol class="list-decimal space-y-2 pl-5">
-							<li>Open your Completed Quest List on FarmRPG.</li>
+							<li>Open FarmRPG (browser, or the Steam client) and go to Help Needed &gt; Completed.</li>
 							<li>
-								Open the browser console (Ctrl+Shift+K on Firefox, Ctrl+Shift+J on most others).
+								Select the whole page — <kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700"
+									>Ctrl+A</kbd
+								>
+								/
+								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or the
+								Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+									class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
+								>
+								/
+								<strong>Edit &gt; Copy</strong>).
 							</li>
-							<li>
-								Paste the script below and press Enter. It adds a
-								<strong>"Copy List to Clipboard"</strong> button to the page — click it.
-							</li>
-							<li>Come back here, paste the clipboard contents below, and click "Parse paste".</li>
+							<li>Come back here, paste the full copied text below, and click "Parse paste".</li>
 						</ol>
 						<p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
-							This only returns quest names, not which questline each one belongs to — matching
-							quest names get marked done across every questline that has one. If the same quest
-							name is reused in more than one chain, all of them get marked, since a bare name can't
-							distinguish which chain it actually came from.
+							The parser looks for the "Completed Requests" section within whatever you paste, so
+							surrounding chat/menu/active-request text is fine. It only recovers quest names, not
+							which questline each one belongs to — matching quest names get marked done across every
+							questline that has one. If the same quest name is reused in more than one chain, all of
+							them get marked, since a bare name can't distinguish which chain it actually came from.
+							Mobile app pastes aren't supported.
 						</p>
-						<div class="mt-3">
-							<div class="mb-1 flex items-center justify-between">
-								<span class="text-xs font-medium text-gray-500 dark:text-gray-400"
-									>Console script</span
-								>
-								<button
-									onclick={() => copyScript(COMPLETED_QUESTS_SCRAPER_SCRIPT)}
-									class={buttonClass('link')}
-								>
-									{copyScriptMessage || 'Copy script'}
-								</button>
-							</div>
-							<pre class="overflow-x-auto rounded bg-gray-900 p-3 text-xs text-gray-100"><code
-									>{COMPLETED_QUESTS_SCRAPER_SCRIPT}</code
-								></pre>
-						</div>
 					</div>
 				</details>
 
@@ -1469,7 +1429,7 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 					<textarea
 						bind:value={completedPasteText}
 						rows="6"
-						placeholder="Paste one quest name per line…"
+						placeholder="Paste the full Help Needed &gt; Completed page text here"
 						class="w-full rounded border border-gray-300 p-2 pr-9 font-mono text-xs dark:border-gray-600 dark:bg-gray-800"
 					></textarea>
 					{#if completedPasteText}
@@ -1490,7 +1450,9 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 					{/if}
 				</div>
 				{#if unmatchedQuestNames.length > 0}
-					<div class="mt-3 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950">
+					<div
+						class="mt-3 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950"
+					>
 						<div class="mb-1 flex items-center justify-between">
 							<span class="text-xs font-medium text-amber-800 dark:text-amber-300"
 								>{unmatchedQuestNames.length} name{unmatchedQuestNames.length === 1 ? '' : 's'} didn't
@@ -1500,7 +1462,8 @@ document.getElementById("copytoclipboard").addEventListener("click", async () =>
 								{copyUnmatchedMessage || 'Copy list'}
 							</button>
 						</div>
-						<pre class="max-h-32 overflow-y-auto rounded bg-gray-900 p-2 text-xs text-gray-100"><code
+						<pre
+							class="max-h-32 overflow-y-auto rounded bg-gray-900 p-2 text-xs text-gray-100"><code
 								>{unmatchedQuestNames.join('\n')}</code
 							></pre>
 						<p class="mt-2 text-xs text-amber-800 dark:text-amber-300">

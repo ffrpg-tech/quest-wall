@@ -1,59 +1,127 @@
 import type { InventoryEntry } from './types';
 
+// Client-side only — parses a manual select-all + copy of the player's raw
+// FarmRPG inventory PAGE text (browser or Steam client's Edit > Select All >
+// Copy). This has no relationship to the offline GraphQL fetch script under
+// /api: that script produces the quest/questline data this app ships with,
+// this parser turns a player's own pasted text into their current inventory.
+// Keep them decoupled — this file must never import from or reference /api.
+
+export interface ParsedInventoryLine {
+	itemName: string;
+	quantity: number;
+	category?: string;
+	maxed?: boolean;
+}
+
+export class InventoryParseError extends Error {}
+
+const ANCHOR = 'Currently, you cannot have more than';
+const END_MARKER = 'Inventory Stats';
+const CATEGORY_SUFFIX = ' chevron_down';
+// Only "MAX ON HAND" signals the storage-cap condition this app cares about.
+// "Mastered"/"Grand Mastered" are a separate crafting-mastery indicator with
+// no bearing on whether the item is at cap — they're just discarded like any
+// other description line, not folded into `maxed`.
+const STATUS_FLAGS = ['MAX ON HAND'];
+
+/** Case-insensitive substring search that returns an index into `haystack`'s original casing — the game renders some UI text (e.g. the "INVENTORY STATS" footer) in a different case than others, so anchor/end-marker matching can't assume one exact case. */
+function indexOfCaseInsensitive(haystack: string, needle: string): number {
+	return haystack.toLowerCase().indexOf(needle.toLowerCase());
+}
+
 /**
- * Parses a pasted inventory dump into item -> InventoryEntry.
+ * Parses raw copy-pasted inventory page text into structured item lines.
  *
- * Accepted line shapes (tab-separated, extra whitespace tolerated):
- *   Category\tItem Name\tQty
- *   Category\tItem Name\tQty\tMAX
- *   Item Name\tQty
- *
- * Any line that doesn't resolve to a name + a numeric quantity is skipped
- * rather than throwing, so a partially malformed paste still produces a
- * usable inventory instead of an empty/crashed table.
+ * Mobile app pastes are explicitly out of scope — best-effort platform
+ * detection isn't attempted; malformed/truncated input (including a mobile
+ * paste that doesn't match the expected page structure) fails loudly via
+ * `InventoryParseError` rather than silently producing a partial/empty
+ * result, since a silent guess here would be worse than an obvious error.
  */
-export function parseInventoryDump(text: string): Map<string, InventoryEntry> {
-	const result = new Map<string, InventoryEntry>();
-
-	for (const rawLine of text.split(/\r?\n/)) {
-		const line = rawLine.trim();
-		if (!line) continue;
-
-		const fields = line.split('\t').map((f) => f.trim());
-		if (fields.length < 2) continue;
-
-		// The quantity is whichever field is a plain integer; prefer scanning
-		// from the end since category/name never look like a bare number.
-		let qtyIndex = -1;
-		for (let i = fields.length - 1; i >= 0; i--) {
-			if (/^\d+$/.test(fields[i])) {
-				qtyIndex = i;
-				break;
-			}
-		}
-		if (qtyIndex === -1) continue;
-
-		const qty = parseInt(fields[qtyIndex], 10);
-		if (!Number.isFinite(qty)) continue;
-
-		// Name is the field immediately before the quantity (category, if any,
-		// comes before that and is otherwise unused).
-		const nameIndex = qtyIndex - 1;
-		if (nameIndex < 0) continue;
-		const name = fields[nameIndex];
-		if (!name) continue;
-
-		const maxed = fields.slice(qtyIndex + 1).some((f) => /^(max|maxed|true|yes)$/i.test(f));
-
-		const existing = result.get(name);
-		if (existing) {
-			existing.qty += qty;
-			existing.maxed = existing.maxed || maxed;
-		} else {
-			result.set(name, { item: name, qty, maxed });
-		}
+export function parseInventoryPaste(rawText: string): ParsedInventoryLine[] {
+	const anchorIdx = indexOfCaseInsensitive(rawText, ANCHOR);
+	if (anchorIdx === -1) {
+		throw new InventoryParseError(
+			'Could not find the inventory marker text in the pasted content — make sure you copied the full inventory page.'
+		);
 	}
 
+	// Discard everything up to and including the anchor's own line.
+	const afterAnchor = rawText.slice(anchorIdx);
+	const anchorLineEnd = afterAnchor.indexOf('\n');
+	const afterAnchorLine = anchorLineEnd === -1 ? '' : afterAnchor.slice(anchorLineEnd + 1);
+
+	const endIdx = indexOfCaseInsensitive(afterAnchorLine, END_MARKER);
+	if (endIdx === -1) {
+		throw new InventoryParseError(
+			'Could not find the end of the inventory block ("Inventory Stats") — the paste may be truncated.'
+		);
+	}
+	const block = afterAnchorLine.slice(0, endIdx);
+
+	const lines = block
+		.split(/\r?\n/)
+		.map((l) => l.trim())
+		.filter((l) => l.length > 0);
+
+	const results: ParsedInventoryLine[] = [];
+	let currentCategory: string | undefined;
+	let chunkLines: string[] = [];
+
+	for (const line of lines) {
+		if (line.endsWith(CATEGORY_SUFFIX)) {
+			currentCategory = line.slice(0, -CATEGORY_SUFFIX.length).trim();
+			chunkLines = [];
+			continue;
+		}
+
+		// Quantities are rendered with thousands separators once they cross
+		// 999 (e.g. "1,002"), so the anchor check has to tolerate commas —
+		// matching only bare digits silently missed every high-quantity item.
+		if (/^\d{1,3}(,\d{3})*$/.test(line)) {
+			if (chunkLines.length === 0) {
+				throw new InventoryParseError(
+					`Found a quantity line ("${line}") with no preceding item name — the paste may be truncated or malformed.`
+				);
+			}
+			const itemName = chunkLines[0];
+			const maxed = chunkLines.some((l) => STATUS_FLAGS.includes(l));
+			results.push({
+				itemName,
+				quantity: parseInt(line.replace(/,/g, ''), 10),
+				category: currentCategory,
+				maxed
+			});
+			chunkLines = [];
+			continue;
+		}
+
+		// Description lines and status-flag lines both accumulate here; only
+		// chunkLines[0] (the name) and the STATUS_FLAGS membership check above
+		// are ever read back out — everything else is discarded on purpose.
+		chunkLines.push(line);
+	}
+
+	if (results.length === 0) {
+		throw new InventoryParseError(
+			'No inventory items were found between the markers — check the paste format.'
+		);
+	}
+
+	return results;
+}
+
+/** Bridges parser output into the existing `InventoryEntry`/`mergeInventory` flow. */
+export function toInventoryEntries(parsed: ParsedInventoryLine[]): Map<string, InventoryEntry> {
+	const result = new Map<string, InventoryEntry>();
+	for (const line of parsed) {
+		result.set(line.itemName, {
+			item: line.itemName,
+			qty: line.quantity,
+			maxed: line.maxed ?? false
+		});
+	}
 	return result;
 }
 
