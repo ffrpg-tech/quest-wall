@@ -48,6 +48,7 @@
 			</p>
 			<ol class="mt-1 list-decimal space-y-1 pl-5">
 				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Erisere</span> — shared their stored quest data via CSV to initialize the data and helped test the calculator.</li>
+				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Natsulus</span> — offered early insights on client-side inventory collection that helped shape the direction of the inventory parser.</li>
 			</ol>
 		</div>
 
@@ -81,7 +82,7 @@
 						class="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
 						>Compare Completed Quests</a>
 					by <span class="font-medium text-red-600 dark:text-red-400">Unknown</span>
-					— where I reused the console script to parse the quest data and created the inventory parser from it.
+					— whose approach to identifying completed quests informed the early direction of this project's data handling.
 				</li>
 			</ol>
 			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
@@ -93,8 +94,7 @@
 		<div>
 			<h2 class="font-semibold text-gray-900 dark:text-gray-100">Staff approval</h2>
 			<p class="mt-1">
-				Thank you to FarmRPG Staff <strong>coderanger</strong>, who reviewed and approved this site before it
-				went live.
+				Thank you to FarmRPG Staff <strong class="font-medium text-emerald-600 dark:text-emerald-400">coderanger</strong>, who provided technical access and guidance this calculator's data pipeline is built on, and reviewed and approved the site before it went live.
 			</p>
 		</div>
 
