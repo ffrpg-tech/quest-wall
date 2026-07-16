@@ -1,3 +1,5 @@
+import { indexOfCaseInsensitive } from './pasteParsing';
+
 // Client-side only — parses a manual select-all + copy of the FarmRPG
 // "Help Needed" / Completed screen. This has no relationship to the offline
 // GraphQL fetch script under /api or to the inventory-paste parser; it only
@@ -7,11 +9,6 @@ export class CompletedQuestParseError extends Error {}
 
 const ANCHOR = 'Completed Requests';
 const REQUEST_FROM_PREFIX = 'Request from ';
-
-/** Case-insensitive substring search that returns an index into `haystack`'s original casing. */
-function indexOfCaseInsensitive(haystack: string, needle: string): number {
-	return haystack.toLowerCase().indexOf(needle.toLowerCase());
-}
 
 /**
  * A quest title normally occupies one line, but long titles wrap onto a

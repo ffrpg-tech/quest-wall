@@ -1,4 +1,5 @@
 import type { InventoryEntry } from './types';
+import { indexOfCaseInsensitive, parseCommaNumber, toTrimmedLines } from './pasteParsing';
 
 // Client-side only — parses a manual select-all + copy of the player's raw
 // FarmRPG inventory PAGE text (browser or Steam client's Edit > Select All >
@@ -24,11 +25,6 @@ const CATEGORY_SUFFIX = ' chevron_down';
 // no bearing on whether the item is at cap — they're just discarded like any
 // other description line, not folded into `maxed`.
 const STATUS_FLAGS = ['MAX ON HAND'];
-
-/** Case-insensitive substring search that returns an index into `haystack`'s original casing — the game renders some UI text (e.g. the "INVENTORY STATS" footer) in a different case than others, so anchor/end-marker matching can't assume one exact case. */
-function indexOfCaseInsensitive(haystack: string, needle: string): number {
-	return haystack.toLowerCase().indexOf(needle.toLowerCase());
-}
 
 /**
  * Parses raw copy-pasted inventory page text into structured item lines.
@@ -60,10 +56,7 @@ export function parseInventoryPaste(rawText: string): ParsedInventoryLine[] {
 	}
 	const block = afterAnchorLine.slice(0, endIdx);
 
-	const lines = block
-		.split(/\r?\n/)
-		.map((l) => l.trim())
-		.filter((l) => l.length > 0);
+	const lines = toTrimmedLines(block);
 
 	const results: ParsedInventoryLine[] = [];
 	let currentCategory: string | undefined;
@@ -89,7 +82,7 @@ export function parseInventoryPaste(rawText: string): ParsedInventoryLine[] {
 			const maxed = chunkLines.some((l) => STATUS_FLAGS.includes(l));
 			results.push({
 				itemName,
-				quantity: parseInt(line.replace(/,/g, ''), 10),
+				quantity: parseCommaNumber(line),
 				category: currentCategory,
 				maxed
 			});
