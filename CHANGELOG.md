@@ -9,7 +9,23 @@ the page parses this file directly, so an entry added here is what users see.
 
 ## [Unreleased]
 
-## [0.2.0] - 2026-07-16
+## [0.1.3] - 2026-07-16
+
+### Added
+
+- Import your Silver balance by pasting your Bank page — pulls from wallet ("Deposit All") by default, with an option to include your bank balance ("Withdraw All") too.
+- Shortfalls that exceed an item's known storage cap (from a "MAX ON HAND" inventory paste) are flagged "CAPPED" — a sign that no amount of farming will clear the shortfall until the cap is raised or the item is spent down elsewhere.
+
+### Changed
+
+- Editing an item's quantity by hand clears its "maxed" flag, since the new number is your own claim rather than a re-observed storage cap.
+- Updated Credits acknowledgements.
+
+### Fixed
+
+- A failed questlines fetch no longer wipes your saved questline queue — it's treated the same as still-loading rather than "nothing matched."
+
+## [0.1.2] - 2026-07-16
 
 ### Changed
 
