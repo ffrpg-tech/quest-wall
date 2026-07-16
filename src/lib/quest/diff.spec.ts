@@ -93,6 +93,29 @@ describe('diffQuestline', () => {
 		expect(result.quests[1].shortfalls).toEqual([{ item: 'Wood', needed: 10, have: 6, short: 4 }]);
 		expect(result.wallPointIndex).toBe(1);
 	});
+
+	it('flags a shortfall as capped when the requirement exceeds a known storage cap', () => {
+		// Player's Wood caps out at 8 (from a "MAX ON HAND" paste) — quest II
+		// needs 10 at once, which is structurally impossible regardless of how
+		// much they farm, not an ordinary "gather more" shortfall.
+		const caps = new Map([['Wood', 8]]);
+		const result = diffQuestline(questline, new Map([['Wood', 8]]), new Set(), caps);
+
+		// Quest I consumes 5 of the 8 Wood on hand first, leaving 3 for quest II.
+		expect(result.quests[1].shortfalls).toEqual([
+			{ item: 'Wood', needed: 10, have: 3, short: 7, capped: true }
+		]);
+		expect(result.totalShortfalls[0].capped).toBe(true);
+	});
+
+	it('does not flag a shortfall as capped when the requirement is within the known cap', () => {
+		// Cap is 20, well above what any single quest needs — an ordinary
+		// shortfall from having too little on hand right now, not a cap issue.
+		const caps = new Map([['Wood', 20]]);
+		const result = diffQuestline(questline, new Map([['Wood', 6]]), new Set(), caps);
+
+		expect(result.quests[1].shortfalls[0].capped).toBeUndefined();
+	});
 });
 
 describe('diffQuestlineQueue', () => {

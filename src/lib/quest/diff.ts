@@ -5,6 +5,8 @@ export interface ItemShortfall {
 	needed: number;
 	have: number;
 	short: number;
+	/** True when a single requirement for this item exceeds the player's known storage cap for it (from a "MAX ON HAND" inventory paste) — no amount of farming clears this until the cap is raised or the item is spent down elsewhere, unlike an ordinary shortfall. */
+	capped?: boolean;
 }
 
 export interface QuestDiffResult {
@@ -29,10 +31,16 @@ export interface AggregatedItemShortfall extends ItemShortfall {
 }
 
 /** Folds a new `needed`/`short` hit into an existing aggregate in place, keeping `have = needed - short` internally consistent — the single accumulation rule shared by the chain-level (`walkQuestline`) and queue-level (`aggregateQueueShortfalls`) rollups, so the invariant can't drift out of sync between the two call sites. */
-function accumulateShortfall(target: ItemShortfall, needed: number, short: number): void {
+function accumulateShortfall(
+	target: ItemShortfall,
+	needed: number,
+	short: number,
+	capped = false
+): void {
 	target.needed += needed;
 	target.short += short;
 	target.have = target.needed - target.short;
+	if (capped) target.capped = true;
 }
 
 export interface QuestlineDiffResult {
@@ -53,7 +61,8 @@ export interface QuestlineDiffResult {
 function walkQuestline(
 	questline: Questline,
 	inv: Map<string, number>,
-	completed: Set<string>
+	completed: Set<string>,
+	caps: Map<string, number>
 ): QuestlineDiffResult {
 	const quests: QuestDiffResult[] = [];
 	let wallPointIndex: number | null = null;
@@ -81,11 +90,13 @@ function walkQuestline(
 			if (have < req.qty) {
 				ok = false;
 				const short = req.qty - have;
-				shortfalls.push({ item: req.item, needed: req.qty, have, short });
+				const cap = caps.get(req.item);
+				const capped = cap !== undefined && req.qty > cap ? true : undefined;
+				shortfalls.push({ item: req.item, needed: req.qty, have, short, capped });
 
 				const existing = totalShortfallMap.get(req.item);
 				if (existing) {
-					accumulateShortfall(existing, req.qty, short);
+					accumulateShortfall(existing, req.qty, short, capped);
 
 					// Same quest can hit the same item twice only if it lists the
 					// item as a requirement more than once — fold into the same
@@ -99,6 +110,7 @@ function walkQuestline(
 						needed: req.qty,
 						have,
 						short,
+						capped,
 						byQuest: [{ questName: q.name, seq: q.seq, short }]
 					});
 				}
@@ -130,9 +142,10 @@ function walkQuestline(
 export function diffQuestline(
 	questline: Questline,
 	startingInventory: Map<string, number>,
-	completed: Set<string> = new Set()
+	completed: Set<string> = new Set(),
+	caps: Map<string, number> = new Map()
 ): QuestlineDiffResult {
-	return walkQuestline(questline, new Map(startingInventory), completed);
+	return walkQuestline(questline, new Map(startingInventory), completed, caps);
 }
 
 /**
@@ -144,10 +157,11 @@ export function diffQuestline(
 export function diffQuestlineQueue(
 	questlines: Questline[],
 	startingInventory: Map<string, number>,
-	completed: Set<string> = new Set()
+	completed: Set<string> = new Set(),
+	caps: Map<string, number> = new Map()
 ): QuestlineDiffResult[] {
 	const inv = new Map(startingInventory);
-	return questlines.map((questline) => walkQuestline(questline, inv, completed));
+	return questlines.map((questline) => walkQuestline(questline, inv, completed, caps));
 }
 
 /** One questline's contribution to a queue-level aggregated item shortfall, still broken down by quest. */
@@ -185,7 +199,7 @@ export function aggregateQueueShortfalls(results: QuestlineDiffResult[]): QueueI
 
 			const existing = map.get(s.item);
 			if (existing) {
-				accumulateShortfall(existing, s.needed, s.short);
+				accumulateShortfall(existing, s.needed, s.short, s.capped);
 				existing.byQuestline.push(share);
 			} else {
 				map.set(s.item, {
@@ -193,6 +207,7 @@ export function aggregateQueueShortfalls(results: QuestlineDiffResult[]): QueueI
 					needed: s.needed,
 					have: s.have,
 					short: s.short,
+					capped: s.capped,
 					byQuestline: [share]
 				});
 			}
