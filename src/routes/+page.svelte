@@ -32,6 +32,7 @@
 		mergeInventory
 	} from '$lib/quest/inventory';
 	import { parseCompletedQuestNames, CompletedQuestParseError } from '$lib/quest/completed';
+	import { parseBankPaste, BankParseError } from '$lib/quest/bank';
 	import {
 		aggregateQueueShortfalls,
 		diffQuestlineQueue,
@@ -233,6 +234,12 @@
 		return trimmed === '' || text.toLowerCase().includes(trimmed.toLowerCase());
 	}
 
+	/** Unwraps a caught paste-parsing error into a user-facing message: the parser's own message if it's the expected error class, otherwise a generic fallback — the one rule shared by all three paste-parsing handlers below. */
+	// eslint-disable-next-line @typescript-eslint/no-explicit-any
+	function parseErrorMessage(err: unknown, ErrorClass: new (...args: any[]) => Error): string {
+		return err instanceof ErrorClass ? err.message : 'Unexpected error parsing paste.';
+	}
+
 	// ---------- Inventory ----------
 
 	let inventory = $state<InventoryEntry[]>([]);
@@ -250,12 +257,20 @@
 
 	const inventoryMap = $derived(inventoryToMap(inventory));
 
+	// Items currently flagged "MAX ON HAND" tell us their real storage cap —
+	// the parsed quantity *is* the cap, since the player can't be holding more
+	// than that. Only covers items that happen to be maxed right now; anything
+	// else has an unknown cap and is treated as uncapped.
+	const inventoryCaps = $derived(
+		new Map(inventory.filter((e) => e.maxed).map((e) => [e.item, e.qty]))
+	);
+
 	const filteredInventory = $derived(inventory.filter((e) => matchesQuery(e.item, inventoryQuery)));
 
-	/** Directly editing a row's Qty field is the only way to update an existing item's quantity — there's no separate "manual entry" form duplicating the table. Clamps rather than rejecting invalid input (negative, empty, non-numeric) — silently no-op'ing left the input showing whatever the user typed while state stayed unchanged underneath it, since the field's displayed value only resyncs when the bound state actually changes. */
+	/** Directly editing a row's Qty field is the only way to update an existing item's quantity — there's no separate "manual entry" form duplicating the table. Clamps rather than rejecting invalid input (negative, empty, non-numeric) — silently no-op'ing left the input showing whatever the user typed while state stayed unchanged underneath it, since the field's displayed value only resyncs when the bound state actually changes. Clears `maxed` on edit: a maxed entry's qty is trusted as the item's real storage cap (see `inventoryCaps`), and a manual edit invalidates that — the new number is the player's own claim, not a re-observed "MAX ON HAND" from a paste. */
 	function updateItemQty(name: string, qty: number) {
 		const clamped = Number.isFinite(qty) ? Math.max(0, qty) : 0;
-		inventory = inventory.map((e) => (e.item === name ? { ...e, qty: clamped } : e));
+		inventory = inventory.map((e) => (e.item === name ? { ...e, qty: clamped, maxed: false } : e));
 	}
 
 	function removeItem(name: string) {
@@ -276,8 +291,12 @@
 
 	$effect(() => {
 		// Waits on questlinesHydrated since questlineByName is empty until the
-		// fetch in the questlines onMount above resolves.
-		if (questlinesHydrated && !queueHydrated) {
+		// fetch in the questlines onMount above resolves. Also waits out a fetch
+		// failure (questlinesError) — otherwise questlineByName would still be
+		// empty, every saved name would look "unmatched," and the save effect
+		// below would persist that now-empty queue over the real saved one,
+		// permanently losing it to what was only a transient network blip.
+		if (questlinesHydrated && !questlinesError && !queueHydrated) {
 			// Drop any saved name that no longer matches a real questline (e.g. the
 			// underlying quest data changed since the queue was saved).
 			selectedQuestlineNames = loadQueue().filter((name) => questlineByName.has(name));
@@ -348,6 +367,13 @@
 	// loadInventoryBaseline in persistence.ts for why this is a set, not a count.
 	let inventoryBaseline = new SvelteSet<string>();
 
+	// Keys currently in `completed` but not in `inventoryBaseline` — kept as its
+	// own incrementally-updated set (mirroring completedCountByQuestline below)
+	// rather than recomputed via `[...completed].some(...)` on every toggle,
+	// which would copy the whole (potentially ~2400-entry) completed set just to
+	// check for staleness.
+	let staleKeys = new SvelteSet<string>();
+
 	/** How many quests are marked done within each questline, keyed by questline name. Kept as its own state (updated incrementally by toggleCompleted) rather than a $derived recompute, since re-walking all ~2400 quests across every questline on every single checkbox click would be wasted work — only one questline's count actually changes per toggle. */
 	let completedCountByQuestline = new SvelteMap<string, number>();
 
@@ -383,6 +409,7 @@
 			for (const key of loadCompleted()) completed.add(key);
 			applyCompletedCounts(computeCompletedCounts(completed));
 			for (const key of loadInventoryBaseline()) inventoryBaseline.add(key);
+			for (const key of completed) if (!inventoryBaseline.has(key)) staleKeys.add(key);
 			hydrated = true;
 		}
 	});
@@ -391,7 +418,7 @@
 	 * only additions count. Unchecking a quest never deducted anything (walkQuestline
 	 * skips completed quests entirely), so it can't make the pasted numbers wrong and
 	 * doesn't need to trigger this. */
-	const inventoryStale = $derived([...completed].some((key) => !inventoryBaseline.has(key)));
+	const inventoryStale = $derived(staleKeys.size > 0);
 
 	$effect(() => {
 		if (hydrated) saveCompleted(completed);
@@ -407,6 +434,9 @@
 			questlineName,
 			(completedCountByQuestline.get(questlineName) ?? 0) + (adding ? 1 : -1)
 		);
+
+		if (adding && !inventoryBaseline.has(key)) staleKeys.add(key);
+		else if (!adding) staleKeys.delete(key);
 	}
 
 	/** Quest name -> every (questline, quest) pair with that exact name.
@@ -443,8 +473,7 @@
 		try {
 			names = parseCompletedQuestNames(completedPasteText);
 		} catch (err) {
-			completedParseMessage =
-				err instanceof CompletedQuestParseError ? err.message : 'Unexpected error parsing paste.';
+			completedParseMessage = parseErrorMessage(err, CompletedQuestParseError);
 			unmatchedQuestNames = [];
 			return;
 		}
@@ -458,7 +487,11 @@
 				continue;
 			}
 			matchedNames++;
-			for (const m of matches) completed.add(questKey(m.questlineName, m.questName));
+			for (const m of matches) {
+				const key = questKey(m.questlineName, m.questName);
+				completed.add(key);
+				if (!inventoryBaseline.has(key)) staleKeys.add(key);
+			}
 		}
 		applyCompletedCounts(computeCompletedCounts(completed));
 		unmatchedQuestNames = [...new Set(unmatched)];
@@ -507,6 +540,8 @@
 		) {
 			completed.clear();
 			for (const key of imported) completed.add(key);
+			staleKeys.clear();
+			for (const key of imported) if (!inventoryBaseline.has(key)) staleKeys.add(key);
 			applyCompletedCounts(computeCompletedCounts(completed));
 			importMessage = `Imported ${imported.size} completed quests.`;
 		}
@@ -516,7 +551,7 @@
 	// ---------- Diff ----------
 
 	const diffResults = $derived<QuestlineDiffResult[]>(
-		diffQuestlineQueue(selectedQuestlines, inventoryMap, completed)
+		diffQuestlineQueue(selectedQuestlines, inventoryMap, completed, inventoryCaps)
 	);
 
 	// The single item-level shortfall view, regardless of queue length — this
@@ -530,16 +565,12 @@
 	let shortfallSearch = $state('');
 
 	const filteredShortfallSummary = $derived(
-		shortfallSearch.trim()
-			? shortfallSummary.filter((s) =>
-					s.item.toLowerCase().includes(shortfallSearch.trim().toLowerCase())
-				)
-			: shortfallSummary
+		shortfallSummary.filter((s) => matchesQuery(s.item, shortfallSearch))
 	);
 
 	// ---------- Import modal (paste-based: inventory dump + completed quests) ----------
 
-	type ImportTab = 'inventory' | 'completed';
+	type ImportTab = 'inventory' | 'bank' | 'completed';
 	let importModalOpen = $state(false);
 	let importTab = $state<ImportTab>('inventory');
 	let showScraperHelp = $state(false);
@@ -561,6 +592,39 @@
 	function clearPasteText() {
 		pasteText = '';
 		parseMessage = '';
+	}
+
+	let bankPasteText = $state('');
+	let bankParseMessage = $state('');
+	let includeBankBalance = $state(false);
+
+	function clearBankPasteText() {
+		bankPasteText = '';
+		bankParseMessage = '';
+	}
+
+	function handleParseBankPaste() {
+		if (!bankPasteText.trim()) {
+			bankParseMessage = 'Nothing to parse.';
+			return;
+		}
+
+		let parsed;
+		try {
+			parsed = parseBankPaste(bankPasteText);
+		} catch (err) {
+			bankParseMessage = parseErrorMessage(err, BankParseError);
+			return;
+		}
+
+		const silver = parsed.walletSilver + (includeBankBalance ? parsed.bankSilver : 0);
+		inventory = mergeInventory(
+			inventory,
+			new Map([['Silver', { item: 'Silver', qty: silver, maxed: false }]])
+		);
+		bankParseMessage = includeBankBalance
+			? `Set Silver to ${silver.toLocaleString()} (wallet + bank).`
+			: `Set Silver to ${silver.toLocaleString()} (wallet only).`;
 	}
 
 	function clearCompletedPasteText() {
@@ -587,8 +651,7 @@
 		try {
 			parsed = toInventoryEntries(parseInventoryPaste(pasteText));
 		} catch (err) {
-			parseMessage =
-				err instanceof InventoryParseError ? err.message : 'Unexpected error parsing paste.';
+			parseMessage = parseErrorMessage(err, InventoryParseError);
 			return;
 		}
 
@@ -600,6 +663,7 @@
 		// now is now reflected in the pasted numbers, so reset the baseline.
 		inventoryBaseline.clear();
 		for (const key of completed) inventoryBaseline.add(key);
+		staleKeys.clear();
 		saveInventoryBaseline(completed);
 	}
 
@@ -1026,7 +1090,18 @@
 						<ul class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
 							{#each filteredShortfallSummary as s (s.item)}
 								<li class="border-b border-gray-100 py-1 dark:border-gray-700">
-									<div class="font-medium text-gray-900 dark:text-gray-100">{s.item}</div>
+									<div
+										class="flex items-center gap-1.5 font-medium text-gray-900 dark:text-gray-100"
+									>
+										{s.item}
+										{#if s.capped}
+											<span
+												title="A single requirement for this item exceeds your known storage cap — no amount of farming clears this until the cap is raised or spent down elsewhere."
+												class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
+												>CAPPED</span
+											>
+										{/if}
+									</div>
 									<div
 										class="mt-1 flex justify-between border-l border-gray-200 pl-2 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
 									>
@@ -1164,6 +1239,13 @@
 																		class="tabular-nums font-semibold text-red-600 dark:text-red-400"
 																		>{s.short}</span
 																	>)
+																	{#if s.capped}
+																		<span
+																			title="This requirement exceeds your known storage cap for this item — no amount of farming clears this until the cap is raised or spent down elsewhere."
+																			class="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
+																			>CAPPED</span
+																		>
+																	{/if}
 																</li>
 															{/each}
 														</ul>
@@ -1321,6 +1403,12 @@
 					Inventory
 				</button>
 				<button
+					onclick={() => switchImportTab('bank')}
+					class={buttonClass('pill', importTab === 'bank')}
+				>
+					Bank (Silver)
+				</button>
+				<button
 					onclick={() => switchImportTab('completed')}
 					class={buttonClass('pill', importTab === 'completed')}
 				>
@@ -1357,7 +1445,8 @@
 							The parser looks for the inventory section within whatever you paste, so surrounding
 							chat/menu text is fine. Items shown as <code
 								class="rounded bg-gray-100 px-1 dark:bg-gray-700">MAX ON HAND</code
-							> are flagged as maxed (<code class="rounded bg-gray-100 px-1 dark:bg-gray-700"
+							>
+							are flagged as maxed (<code class="rounded bg-gray-100 px-1 dark:bg-gray-700"
 								>Mastered</code
 							>/<code class="rounded bg-gray-100 px-1 dark:bg-gray-700">Grand Mastered</code> are a separate
 							crafting indicator and don't affect this). Mobile app pastes aren't supported.
@@ -1389,7 +1478,68 @@
 						<span class="text-xs text-gray-500 dark:text-gray-400">{parseMessage}</span>
 					{/if}
 				</div>
-			{:else}
+			{:else if importTab === 'bank'}
+				<details
+					bind:open={showScraperHelp}
+					class="mb-3 rounded border border-gray-200 dark:border-gray-700"
+				>
+					<summary class="cursor-pointer p-2 text-sm font-medium">How do I get my Silver?</summary>
+					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
+						<ol class="list-decimal space-y-2 pl-5">
+							<li>Open FarmRPG (browser, or the Steam client) and go to the Bank page.</li>
+							<li>
+								Select the whole page — <kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700"
+									>Ctrl+A</kbd
+								>
+								/
+								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or
+								the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+									class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
+								>
+								/
+								<strong>Edit &gt; Copy</strong>).
+							</li>
+							<li>Come back here, paste the full copied text below, and click "Parse paste".</li>
+						</ol>
+						<p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+							This reads the <strong>Bulk Options</strong> block. "Deposit All" is Silver sitting in your
+							wallet (spendable right now) — that's what's used by default. "Withdraw All" is Silver already
+							in the bank, not in your wallet yet; check the box below to add it in too if you'd withdraw
+							it to cover a quest.
+						</p>
+					</div>
+				</details>
+
+				<label class="mb-2 flex items-center gap-2 text-sm">
+					<input type="checkbox" bind:checked={includeBankBalance} />
+					Also include bank balance (Withdraw All)
+				</label>
+
+				<div class="relative">
+					<textarea
+						bind:value={bankPasteText}
+						rows="6"
+						placeholder="Paste the full Bank page text here"
+						class="w-full rounded border border-gray-300 p-2 pr-9 font-mono text-xs dark:border-gray-600 dark:bg-gray-800"
+					></textarea>
+					{#if bankPasteText}
+						<button
+							onclick={clearBankPasteText}
+							aria-label="Clear pasted text"
+							title="Clear pasted text"
+							class="absolute top-2 right-3 {buttonClass('icon-danger')}"
+						>
+							✕
+						</button>
+					{/if}
+				</div>
+				<div class="mt-2 flex items-center gap-2">
+					<button onclick={handleParseBankPaste} class={buttonClass('primary')}>Parse paste</button>
+					{#if bankParseMessage}
+						<span class="text-xs text-gray-500 dark:text-gray-400">{bankParseMessage}</span>
+					{/if}
+				</div>
+			{:else if importTab === 'completed'}
 				<details
 					bind:open={showScraperHelp}
 					class="mb-3 rounded border border-gray-200 dark:border-gray-700"
@@ -1399,14 +1549,16 @@
 					>
 					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
 						<ol class="list-decimal space-y-2 pl-5">
-							<li>Open FarmRPG (browser, or the Steam client) and go to Help Needed &gt; Completed.</li>
+							<li>
+								Open FarmRPG (browser, or the Steam client) and go to Help Needed &gt; Completed.
+							</li>
 							<li>
 								Select the whole page — <kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700"
 									>Ctrl+A</kbd
 								>
 								/
-								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or the
-								Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or
+								the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
 									class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
 								>
 								/
@@ -1417,10 +1569,10 @@
 						<p class="mt-2 text-xs text-gray-500 dark:text-gray-400">
 							The parser looks for the "Completed Requests" section within whatever you paste, so
 							surrounding chat/menu/active-request text is fine. It only recovers quest names, not
-							which questline each one belongs to — matching quest names get marked done across every
-							questline that has one. If the same quest name is reused in more than one chain, all of
-							them get marked, since a bare name can't distinguish which chain it actually came from.
-							Mobile app pastes aren't supported.
+							which questline each one belongs to — matching quest names get marked done across
+							every questline that has one. If the same quest name is reused in more than one chain,
+							all of them get marked, since a bare name can't distinguish which chain it actually
+							came from. Mobile app pastes aren't supported.
 						</p>
 					</div>
 				</details>
