@@ -69,12 +69,26 @@ src/lib/data/
   items.json            Generated, not committed — all known item names (for autosuggest/validation)
 src/lib/
   seo.ts                Site metadata constants + canonicalUrl() helper, used for meta tags/JSON-LD
+  config.ts             Small cross-component constants (feedback form URL, source repo URL)
   changelog.ts           Parses CHANGELOG.md (Keep a Changelog format) for display on /changelog
   paraglide/              Generated i18n runtime (Paraglide/inlang) — do not hand-edit; messages
                          live in messages/en.json and messages/es.json
+  ui/
+    buttonClass.ts        Shared button/pill/icon Tailwind class variants
+    matchesQuery.ts        Case-insensitive substring search predicate
+  components/
+    AppHeader.svelte       Title, feedback/import/backup buttons, dark mode toggle
+    InventoryPanel.svelte  Inventory table, search, stale-baseline warning
+    QuestlinePicker.svelte Search/status filter, questline list, drag-reorderable queue
+    ShortfallSummary.svelte Collapsible combined shortfall breakdown
+    ResultsList.svelte     Per-questline results table with completion checkboxes
+    ImportModal.svelte     3-tab paste importer (inventory/bank/completed quests)
+    ProgressBackupModal.svelte  JSON export/import of completed-quest progress
+    LoadingOverlay.svelte  Startup hydration-stage spinner
+    SiteFooter.svelte      Static footer + changelog/data-freshness links (self-contained)
 src/routes/
-  +page.svelte          The whole app UI (inventory/Bank/completed-requests import tabs,
-                       questline queue picker, results, shortfall summary, tutorial modal)
+  +page.svelte          Owns cross-component state (inventory, completion tracking, queue, dark
+                       mode, modal-open flags) and wires it into the components above
   about/+page.svelte     Static "about" page
   changelog/+page.svelte Renders CHANGELOG.md via changelog.ts
   credits/+page.svelte   Static credits/acknowledgements page
