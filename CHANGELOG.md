@@ -19,6 +19,9 @@ the page parses this file directly, so an entry added here is what users see.
 ### Changed
 
 - Pasted inventory items that aren't needed by any quest are no longer imported, keeping the inventory list focused on what's actually relevant.
+- The inventory list's "(MAX)" tag is now colored red so maxed-out items stand out at a glance.
+- Every questline now shows its completed count out of its total (e.g. "0/18"), colored red at 0, orange while in progress, and green once finished, instead of only showing a count once you'd started.
+- Result rows now use consistent, plain-English statuses: "Done", "Ready", "Short", and "Wall Point" (previously a mix of lowercase, all-caps, and abbreviations like "OK").
 
 ### Fixed
 
@@ -26,6 +29,7 @@ the page parses this file directly, so an entry added here is what users see.
 - Paste parsing is more resilient to chat/menu text sitting near the inventory, bank, or completed-quest markers — it can no longer lock onto a chat message that happens to contain marker-like text.
 - Inventory and completed-quest pastes are now checked against the page's own reported item/quest count, so a truncated paste (a collapsed category, or a list that wasn't fully scrolled into view) fails with a clear message instead of silently importing incomplete data.
 - Fixed a bug where leftover text after your completed-quests list could get miscounted as an extra completed quest.
+- Fixed the results table's sticky header rendering underneath checked-off (faded) rows instead of on top of them.
 
 ## [0.1.3] - 2026-07-16
 
