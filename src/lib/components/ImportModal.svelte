@@ -2,6 +2,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { FEEDBACK_FORM_URL } from '$lib/config';
+	import ParseSuccessFlash from './ParseSuccessFlash.svelte';
 	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
 	import {
 		parseInventoryPaste,
@@ -43,6 +44,45 @@
 
 	let showScraperHelp = $state(false);
 
+	// ---------- Post-parse success flash ----------
+	// Shared across all three tabs: a brief confirmation overlay right after a
+	// successful parse. Parsing is synchronous, so this isn't gating on real
+	// async work — it's deliberate positive feedback that the paste landed,
+	// which matters more now that parsing has more ways to throw (footer
+	// count mismatches, etc.) than it used to.
+
+	let successFlashMessage = $state<string | null>(null);
+	let successFlashTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function flashSuccess(message: string) {
+		successFlashMessage = message;
+		clearTimeout(successFlashTimer);
+		successFlashTimer = setTimeout(() => {
+			successFlashMessage = null;
+		}, 1200);
+	}
+
+	/**
+	 * Fills a paste textarea directly from the clipboard, skipping the manual
+	 * Ctrl+V step — parsing is still a separate, deliberate "Parse paste"
+	 * click, so a stale/wrong clipboard doesn't get committed before the
+	 * player has a chance to glance at what actually landed in the textarea.
+	 * `navigator.clipboard.readText()` needs a secure context and a
+	 * permission grant, and isn't guaranteed to work in every environment
+	 * this app runs in (the Steam client's embedded webview in particular) —
+	 * so this fails silently on denial/unsupported rather than surfacing an
+	 * error, since manual paste into the same textarea always works as the
+	 * fallback regardless of Clipboard API support.
+	 */
+	async function pasteFromClipboard(setText: (value: string) => void) {
+		try {
+			const text = await navigator.clipboard.readText();
+			if (text) setText(text);
+		} catch {
+			// Denied, unsupported, or non-secure context — fall back to manual paste.
+		}
+	}
+
 	// Collapses the how-to-help panel any time the active tab changes, whether
 	// switched from inside this modal or set by a caller opening straight to a
 	// given tab — a single reactive rule instead of a convention every call
@@ -79,6 +119,7 @@
 		// Paste overwrites matching item names in the current inventory.
 		inventory = mergeInventory(inventory, parsed);
 		parseMessage = `Parsed ${parsed.size} item${parsed.size === 1 ? '' : 's'}.`;
+		flashSuccess(parseMessage);
 
 		// This paste is a resync to ground truth: whatever's completed right
 		// now is now reflected in the pasted numbers, so reset the baseline.
@@ -121,6 +162,7 @@
 		bankParseMessage = includeBankBalance
 			? `Set Silver to ${silver.toLocaleString()} (wallet + bank).`
 			: `Set Silver to ${silver.toLocaleString()} (wallet only).`;
+		flashSuccess(bankParseMessage);
 	}
 
 	// ---------- Completed quests tab ----------
@@ -191,6 +233,7 @@
 			unmatched.length > 0
 				? `Marked ${matchedNames} quest name${matchedNames === 1 ? '' : 's'} done (${unmatched.length} name${unmatched.length === 1 ? '' : 's'} didn't match a known quest).`
 				: `Marked ${matchedNames} quest${matchedNames === 1 ? '' : 's'} done.`;
+		flashSuccess(completedParseMessage);
 	}
 
 	let copyUnmatchedMessage = $state('');
@@ -209,8 +252,12 @@
 		role="presentation"
 	>
 		<div
-			class="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800 dark:text-gray-100"
+			class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800 dark:text-gray-100"
 		>
+			{#if successFlashMessage}
+				<ParseSuccessFlash message={successFlashMessage} />
+			{/if}
+
 			<div class="mb-4 flex items-start justify-between">
 				<h2 class="text-lg font-semibold">Import data</h2>
 				<button onclick={() => (open = false)} class={buttonClass('icon')} aria-label="Close">
@@ -274,6 +321,14 @@
 					</div>
 				</details>
 
+				<div class="mb-1 flex justify-end">
+					<button
+						onclick={() => pasteFromClipboard((v) => (pasteText = v))}
+						class={buttonClass('default')}
+					>
+						Paste from clipboard
+					</button>
+				</div>
 				<div class="relative">
 					<textarea
 						bind:value={pasteText}
@@ -335,6 +390,14 @@
 					Also include bank balance (Withdraw All)
 				</label>
 
+				<div class="mb-1 flex justify-end">
+					<button
+						onclick={() => pasteFromClipboard((v) => (bankPasteText = v))}
+						class={buttonClass('default')}
+					>
+						Paste from clipboard
+					</button>
+				</div>
 				<div class="relative">
 					<textarea
 						bind:value={bankPasteText}
@@ -397,6 +460,14 @@
 					</div>
 				</details>
 
+				<div class="mb-1 flex justify-end">
+					<button
+						onclick={() => pasteFromClipboard((v) => (completedPasteText = v))}
+						class={buttonClass('default')}
+					>
+						Paste from clipboard
+					</button>
+				</div>
 				<div class="relative">
 					<textarea
 						bind:value={completedPasteText}
