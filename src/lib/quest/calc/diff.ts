@@ -1,4 +1,4 @@
-import { questKey, type Questline } from './types';
+import { questKey, type Questline } from '../types';
 
 export interface ItemShortfall {
 	item: string;

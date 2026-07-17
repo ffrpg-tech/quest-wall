@@ -104,13 +104,16 @@ describe('parseInventoryPaste', () => {
 		// thousands-separated quantities once an item crosses 999 (previously
 		// silently unmatched by a bare-digit-only regex), and the real page's
 		// "INVENTORY STATS" footer, which renders in a different case than the
-		// "Currently, you cannot have more than" anchor line.
+		// "Currently, you cannot have more than" anchor line. The footer's
+		// stated count is adjusted to 4 (rather than the real page's actual
+		// total) since this excerpt only keeps 4 of the real items — see the
+		// count-cross-check tests below for the untrimmed invariant.
 		const text = `HELP
 GLOBAL
 Say something...
 05:24:34 AM
 
-Eng061208
+SomePlayer
 
 who want free tomatos
 05:24:33 AM
@@ -145,7 +148,7 @@ Not a good pet
 Grand Mastered
 235
 INVENTORY STATS
-Your inventory contains 507 unique items and 155,705 items in total.
+Your inventory contains 4 unique items and 155,705 items in total.
 
 Navigation
   Home`;
@@ -157,6 +160,72 @@ Navigation
 			{ itemName: 'Board', quantity: 1002, category: 'Items', maxed: true },
 			{ itemName: 'Barracuda', quantity: 235, category: 'Fish & Bait', maxed: false }
 		]);
+	});
+
+	it('flags an item as maxed even when the game renders "MAX ON HAND" in a different case', () => {
+		const text = wrap(['Items chevron_down', 'Iron', 'A sturdy metal.', 'max on hand', '966'].join('\n'));
+
+		const parsed = parseInventoryPaste(text);
+		expect(parsed).toEqual([{ itemName: 'Iron', quantity: 966, category: 'Items', maxed: true }]);
+	});
+
+	it('throws when the parsed item count does not match the "Inventory Stats" footer count', () => {
+		// Simulates a virtualized/lazy-loaded list, a collapsed category, or
+		// any other silent-truncation failure mode — the page's own footer
+		// count is authoritative and a mismatch should fail loudly rather than
+		// return a plausible-looking but incomplete result.
+		const text = wrap(
+			['Items chevron_down', 'Wood', '42'].join('\n')
+		).replace('Inventory Stats\nFooter junk', 'Inventory Stats\nYour inventory contains 515 unique items.');
+
+		expect(() => parseInventoryPaste(text)).toThrow(InventoryParseError);
+	});
+
+	it('resolves to the real anchor even when a live chat message contains anchor-like text first', () => {
+		// FarmRPG's chat is public and always rendered above the page content
+		// in a full-page paste — a player could plausibly type something
+		// matching the anchor phrase before the real inventory block appears.
+		const text = `HELP
+GLOBAL
+SomePlayer
+
+lol did you know currently, you cannot have more than 999 of most items? wild
+05:24:34 AM
+
+${ANCHOR_LINE}
+Items chevron_down
+
+Wood
+42
+Inventory Stats
+Your inventory contains 1 unique items.`;
+
+		const parsed = parseInventoryPaste(text);
+		expect(parsed).toEqual([{ itemName: 'Wood', quantity: 42, category: 'Items', maxed: false }]);
+	});
+
+	it('falls back to an earlier valid anchor when the last occurrence is a false chat match', () => {
+		// Not every chat collision lands before the real content — this proves
+		// the fix doesn't just assume "chat is always first". Here the *real*
+		// anchor comes first, and a later chat message (after the real block)
+		// happens to contain anchor-like text with no valid inventory structure
+		// following it. Picking the last occurrence blindly would fail to find
+		// an end marker and throw, even though a perfectly good paste exists
+		// earlier in the same text.
+		const text = `${ANCHOR_LINE}
+Items chevron_down
+
+Wood
+42
+Inventory Stats
+Your inventory contains 1 unique items.
+
+SomePlayer
+haha currently, you cannot have more than 5 friends lol
+05:24:34 AM`;
+
+		const parsed = parseInventoryPaste(text);
+		expect(parsed).toEqual([{ itemName: 'Wood', quantity: 42, category: 'Items', maxed: false }]);
 	});
 });
 

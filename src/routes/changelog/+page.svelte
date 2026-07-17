@@ -3,7 +3,7 @@
 	import { resolve } from '$app/paths';
 	import { canonicalUrl, SITE_NAME } from '$lib/seo';
 	import { parseChangelog, releasedEntries, latestVersion } from '$lib/changelog';
-	import { saveLastSeenChangelogVersion } from '$lib/quest/persistence';
+	import { saveLastSeenChangelogVersion } from '$lib/quest/storage/persistence';
 	import changelogRaw from '../../../CHANGELOG.md?raw';
 
 	const title = `Changelog — ${SITE_NAME}`;

@@ -9,6 +9,19 @@ the page parses this file directly, so an entry added here is what users see.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-17
+
+### Added
+
+- A brief confirmation now appears right after a paste is successfully parsed.
+
+### Fixed
+
+- Quest data no longer gets re-fetched every time you navigate back to the calculator page — it now loads once per tab.
+- Paste parsing is more resilient to chat/menu text sitting near the inventory, bank, or completed-quest markers — it can no longer lock onto a chat message that happens to contain marker-like text.
+- Inventory and completed-quest pastes are now checked against the page's own reported item/quest count, so a truncated paste (a collapsed category, or a list that wasn't fully scrolled into view) fails with a clear message instead of silently importing incomplete data.
+- Fixed a bug where leftover text after your completed-quests list could get miscounted as an extra completed quest.
+
 ## [0.1.3] - 2026-07-16
 
 ### Added

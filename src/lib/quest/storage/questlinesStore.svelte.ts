@@ -1,5 +1,5 @@
 import { base } from '$app/paths';
-import { isQuestlinesData, type QuestlinesData } from './types';
+import { isQuestlinesData, type QuestlinesData } from '../types';
 
 /**
  * Module-level (not component-level) state: `+page.svelte`'s onMount used to

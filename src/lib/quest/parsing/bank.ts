@@ -1,4 +1,4 @@
-import { indexOfCaseInsensitive, parseCommaNumber, toTrimmedLines } from './pasteParsing';
+import { parseCommaNumber, parseFromAnchor, toTrimmedLines } from './pasteParsing';
 
 // Client-side only — parses a manual select-all + copy of the player's raw
 // FarmRPG Bank page text, mirroring inventory.ts's approach for the
@@ -40,14 +40,24 @@ function extractAmount(lines: string[], label: string): number | null {
  * it can't be trusted not to contain a false-positive match.
  */
 export function parseBankPaste(rawText: string): ParsedBank {
-	const anchorIdx = indexOfCaseInsensitive(rawText, ANCHOR);
-	if (anchorIdx === -1) {
-		throw new BankParseError(
-			'Could not find "Bulk Options" in the pasted content — make sure you copied the full Bank page.'
-		);
-	}
+	return parseFromAnchor(
+		rawText,
+		ANCHOR,
+		parseBankBlock,
+		() =>
+			new BankParseError(
+				'Could not find "Bulk Options" in the pasted content — make sure you copied the full Bank page.'
+			)
+	);
+}
 
-	const afterAnchor = rawText.slice(anchorIdx);
+/**
+ * Parses a single candidate occurrence of the anchor. Thrown errors here are
+ * also the signal `parseFromAnchor` uses to reject a false anchor match
+ * (e.g. a live chat message that happened to contain "Bulk Options") and
+ * fall back to an earlier occurrence in the pasted text.
+ */
+function parseBankBlock(afterAnchor: string): ParsedBank {
 	const lines = toTrimmedLines(afterAnchor);
 
 	const walletSilver = extractAmount(lines, DEPOSIT_LABEL);

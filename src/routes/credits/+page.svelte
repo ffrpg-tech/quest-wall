@@ -34,13 +34,15 @@
 		<div>
 			<h2 class="font-semibold text-gray-900 dark:text-gray-100">FarmRPG and its community</h2>
 			<p class="mt-1">
-				All credit for the game itself goes to the <strong>FarmRPG developers</strong> —
+				FarmRPG and all related names, marks, and materials are trademarks of
+				<strong>Magic and Wires, LLC</strong> —
 				<a
 					href="https://farmrpg.com"
 					target="_blank"
 					rel="noopener noreferrer"
 					class="font-medium text-emerald-600 hover:underline dark:text-emerald-400">farmrpg.com</a
-				>. This is an unofficial fan project and isn't affiliated with them.
+				>. This is an unofficial, non-commercial fan project and is not affiliated with,
+				endorsed by, or sponsored by Magic and Wires, LLC.
 			</p>
 			<p class="mt-1">
 				<strong>Special thanks</strong> to the folks on the FarmRPG Discord who helped make this possible,

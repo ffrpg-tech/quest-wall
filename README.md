@@ -45,18 +45,22 @@ request — see `_headers` for the cache headers.
 
 ```
 src/lib/quest/
-  types.ts            Shared types (Quest, Questline, InventoryEntry) + questKey()
-  pasteParsing.ts      Low-level helpers shared by inventory.ts/bank.ts (case-insensitive anchor
+  types.ts             Shared types (Quest, Questline, InventoryEntry) + questKey()
+  parsing/
+    pasteParsing.ts    Low-level helpers shared by inventory.ts/bank.ts (case-insensitive anchor
                        search, comma-number parsing, line splitting) over messy pasted page text
-  inventory.ts         Parses a pasted Inventory-page paste into structured items (incl. "MAX ON
+    inventory.ts       Parses a pasted Inventory-page paste into structured items (incl. "MAX ON
                        HAND" storage caps), merges into state
-  bank.ts               Parses a pasted Bank-page paste into wallet/bank Silver figures
-  completed.ts          Parses a pasted "Completed Requests" paste into a list of quest names
-  diff.ts               Core calculation: walks questline(s) against inventory, finds the wall
+    bank.ts            Parses a pasted Bank-page paste into wallet/bank Silver figures
+    completed.ts       Parses a pasted "Completed Requests" paste into a list of quest names
+  calc/
+    diff.ts            Core calculation: walks questline(s) against inventory, finds the wall
                        point(s) and flags CAPPED shortfalls against known storage caps;
                        diffQuestline (single) and diffQuestlineQueue/aggregateQueueShortfalls (queue)
-  persistence.ts       localStorage read/write for completed-quest tracking, inventory, questline
+  storage/
+    persistence.ts     localStorage read/write for completed-quest tracking, inventory, questline
                        queue, dark mode, JSON export/import
+    questlinesStore.svelte.ts  Fetches/caches questlines.json + questlines-meta.json once per tab
 static/
   questlines.json      Generated, not committed — quests grouped into questlines, fetched by the
                        client at runtime
@@ -65,12 +69,26 @@ src/lib/data/
   items.json            Generated, not committed — all known item names (for autosuggest/validation)
 src/lib/
   seo.ts                Site metadata constants + canonicalUrl() helper, used for meta tags/JSON-LD
+  config.ts             Small cross-component constants (feedback form URL, source repo URL)
   changelog.ts           Parses CHANGELOG.md (Keep a Changelog format) for display on /changelog
   paraglide/              Generated i18n runtime (Paraglide/inlang) — do not hand-edit; messages
                          live in messages/en.json and messages/es.json
+  ui/
+    buttonClass.ts        Shared button/pill/icon Tailwind class variants
+    matchesQuery.ts        Case-insensitive substring search predicate
+  components/
+    AppHeader.svelte       Title, feedback/import/backup buttons, dark mode toggle
+    InventoryPanel.svelte  Inventory table, search, stale-baseline warning
+    QuestlinePicker.svelte Search/status filter, questline list, drag-reorderable queue
+    ShortfallSummary.svelte Collapsible combined shortfall breakdown
+    ResultsList.svelte     Per-questline results table with completion checkboxes
+    ImportModal.svelte     3-tab paste importer (inventory/bank/completed quests)
+    ProgressBackupModal.svelte  JSON export/import of completed-quest progress
+    LoadingOverlay.svelte  Startup hydration-stage spinner
+    SiteFooter.svelte      Static footer + changelog/data-freshness links (self-contained)
 src/routes/
-  +page.svelte          The whole app UI (inventory/Bank/completed-requests import tabs,
-                       questline queue picker, results, shortfall summary, tutorial modal)
+  +page.svelte          Owns cross-component state (inventory, completion tracking, queue, dark
+                       mode, modal-open flags) and wires it into the components above
   about/+page.svelte     Static "about" page
   changelog/+page.svelte Renders CHANGELOG.md via changelog.ts
   credits/+page.svelte   Static credits/acknowledgements page

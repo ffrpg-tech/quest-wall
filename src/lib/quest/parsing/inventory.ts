@@ -1,5 +1,5 @@
-import type { InventoryEntry } from './types';
-import { indexOfCaseInsensitive, parseCommaNumber, toTrimmedLines } from './pasteParsing';
+import type { InventoryEntry } from '../types';
+import { indexOfCaseInsensitive, parseCommaNumber, parseFromAnchor, toTrimmedLines } from './pasteParsing';
 
 // Client-side only — parses a manual select-all + copy of the player's raw
 // FarmRPG inventory PAGE text (browser or Steam client's Edit > Select All >
@@ -36,15 +36,25 @@ const STATUS_FLAGS = ['MAX ON HAND'];
  * result, since a silent guess here would be worse than an obvious error.
  */
 export function parseInventoryPaste(rawText: string): ParsedInventoryLine[] {
-	const anchorIdx = indexOfCaseInsensitive(rawText, ANCHOR);
-	if (anchorIdx === -1) {
-		throw new InventoryParseError(
-			'Could not find the inventory marker text in the pasted content — make sure you copied the full inventory page.'
-		);
-	}
+	return parseFromAnchor(
+		rawText,
+		ANCHOR,
+		parseInventoryBlock,
+		() =>
+			new InventoryParseError(
+				'Could not find the inventory marker text in the pasted content — make sure you copied the full inventory page.'
+			)
+	);
+}
 
+/**
+ * Parses a single candidate occurrence of the anchor. Thrown errors here are
+ * also the signal `parseFromAnchor` uses to reject a false anchor match
+ * (e.g. a live chat message that happened to contain the anchor phrase) and
+ * fall back to an earlier occurrence in the pasted text.
+ */
+function parseInventoryBlock(afterAnchor: string): ParsedInventoryLine[] {
 	// Discard everything up to and including the anchor's own line.
-	const afterAnchor = rawText.slice(anchorIdx);
 	const anchorLineEnd = afterAnchor.indexOf('\n');
 	const afterAnchorLine = anchorLineEnd === -1 ? '' : afterAnchor.slice(anchorLineEnd + 1);
 
@@ -55,6 +65,7 @@ export function parseInventoryPaste(rawText: string): ParsedInventoryLine[] {
 		);
 	}
 	const block = afterAnchorLine.slice(0, endIdx);
+	const afterEnd = afterAnchorLine.slice(endIdx);
 
 	const lines = toTrimmedLines(block);
 
@@ -79,7 +90,9 @@ export function parseInventoryPaste(rawText: string): ParsedInventoryLine[] {
 				);
 			}
 			const itemName = chunkLines[0];
-			const maxed = chunkLines.some((l) => STATUS_FLAGS.includes(l));
+			const maxed = chunkLines.some((l) =>
+				STATUS_FLAGS.some((flag) => flag.toLowerCase() === l.toLowerCase())
+			);
 			results.push({
 				itemName,
 				quantity: parseCommaNumber(line),
@@ -100,6 +113,23 @@ export function parseInventoryPaste(rawText: string): ParsedInventoryLine[] {
 		throw new InventoryParseError(
 			'No inventory items were found between the markers — check the paste format.'
 		);
+	}
+
+	// The page's own "Inventory Stats" footer states an authoritative item
+	// count right after the end marker — cross-checking against it catches
+	// silent truncation (a collapsed category, a virtualized/lazy-loaded list
+	// that wasn't fully scrolled into view, or a mis-parsed line elsewhere)
+	// that would otherwise produce a plausible-looking but incomplete result
+	// with no thrown error. Optional: an older/different page structure
+	// without this line shouldn't block parsing.
+	const statsMatch = /contains\s+([\d,]+)\s+unique items/i.exec(afterEnd);
+	if (statsMatch) {
+		const expectedCount = parseCommaNumber(statsMatch[1]);
+		if (expectedCount !== results.length) {
+			throw new InventoryParseError(
+				`Parsed ${results.length} items, but the page reported ${expectedCount} unique items — the paste may be truncated (e.g. a collapsed category or a partially-scrolled list). Try re-copying the full page.`
+			);
+		}
 	}
 
 	return results;

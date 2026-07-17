@@ -66,7 +66,15 @@ be monetized.
   overwrite a saved preference with the default.
 - Icons: use `@lucide/svelte`, **not** the deprecated `lucide-svelte` package.
 
-## Core calculation invariants (`src/lib/quest/diff.ts`)
+## Folder layout (`src/lib/quest/`)
+
+- `types.ts` (shared types + `questKey()`) sits at the top level; everything
+  else is grouped by concern: `parsing/` (paste parsers), `calc/` (the diff
+  engine), `storage/` (localStorage persistence + the questlines fetch
+  store). Cross-references below still use bare filenames
+  (`diff.ts`, `persistence.ts`, etc.) — resolve them against this layout.
+
+## Core calculation invariants (`src/lib/quest/calc/diff.ts`)
 
 - `walkQuestline` is the shared internal engine: it walks a single questline's
   quests in order against a mutated `Map` inventory, decrementing per
@@ -107,7 +115,7 @@ be monetized.
   `persistence.ts`) — `diff.ts` is a pure calculation module and shouldn't
   import from the storage-specific persistence module.
 
-## Paste parsing (`src/lib/quest/pasteParsing.ts`, `inventory.ts`, `bank.ts`, `completed.ts`)
+## Paste parsing (`src/lib/quest/parsing/pasteParsing.ts`, `inventory.ts`, `bank.ts`, `completed.ts`)
 
 - `pasteParsing.ts` holds low-level helpers shared across the three page
   parsers (`indexOfCaseInsensitive`, `parseCommaNumber`, `toTrimmedLines`) —
@@ -125,7 +133,7 @@ be monetized.
   amounts. It's deliberately decoupled from `inventory.ts`: it only ever
   produces a Silver figure and knows nothing about items.
 
-## Persistence (`src/lib/quest/persistence.ts`)
+## Persistence (`src/lib/quest/storage/persistence.ts`)
 
 - All reads/writes go through `hasLocalStorage()` guard — this file must stay
   SSR-safe.
@@ -138,26 +146,41 @@ be monetized.
   queue against currently known questline names on hydration, dropping any
   stale saved name that no longer matches a real questline.
 
-## Multi-questline queue UI (`src/routes/+page.svelte`)
+## Component layout (`src/routes/+page.svelte` + `src/lib/components/`)
 
-- `selectedQuestlineNames` is the ordered queue (order is meaningful — it
-  drives the shared-inventory walk order in `diffQuestlineQueue`).
-  `toggleQueue`/`removeFromQueue` add/remove entries; drag-and-drop reorder
-  is implemented via `dragFromIndex`/`dragOverIndex` + `handleQueueDrop`.
-- Firefox aborts an HTML5 drag if `dataTransfer.setData` isn't called in
-  `dragstart` (Chromium doesn't enforce this) — keep that call if you touch
-  the drag handlers.
-- `diffResults` (from `diffQuestlineQueue`) drives the per-questline Results
-  panels; `shortfallSummary` (from `aggregateQueueShortfalls`) drives the
-  combined "Shortfall summary" section. Both are `$derived` from
+- `+page.svelte` itself only holds cross-cutting state that multiple
+  components need to share (`inventory`, `completed`/`inventoryBaseline`/
+  `staleKeys`, `selectedQuestlineNames`, `darkMode`, the modal-open flags) and
+  wires it into child components via props/callbacks — most components own
+  their own local UI state (search text, drag state, paste-tab state) instead
+  of that living in the page. `completed`/`inventoryBaseline`/`staleKeys` are
+  `SvelteSet`s passed down **by reference** and mutated directly by
+  `ImportModal`/`ProgressBackupModal`; they call the `onCompletedChanged`
+  callback prop afterward so `+page.svelte` can recompute
+  `completedCountByQuestline` (which it alone owns, since it's the one thing
+  those mutations don't update incrementally).
+- `QuestlinePicker.svelte` owns `selectedQuestlineNames` as a `$bindable` —
+  order is meaningful (drives the shared-inventory walk order in
+  `diffQuestlineQueue`) — plus the search/status-filter state and drag-reorder
+  (`dragFromIndex`/`dragOverIndex` + `handleQueueDrop`). Firefox aborts an
+  HTML5 drag if `dataTransfer.setData` isn't called in `dragstart` (Chromium
+  doesn't enforce this) — keep that call if you touch the drag handlers.
+- `+page.svelte`'s `diffResults` (from `diffQuestlineQueue`) drives
+  `ResultsList.svelte`; `shortfallSummary` (from `aggregateQueueShortfalls`)
+  drives `ShortfallSummary.svelte`. Both are `$derived` from
   `selectedQuestlines` + `inventoryMap` + `completed`.
-- The import modal has three tabs (`ImportTab = 'inventory' | 'bank' |
-  'completed'`), state-driven via `importTab` / `switchImportTab` /
-  `openImportModal` — `switchImportTab` is the one place that owns
-  collapsing the how-to-help panel on tab change, so call it (not a raw
-  `importTab = ...` assignment) from any new call site. The Bank tab feeds
-  `parseBankPaste` and, when `includeBankBalance` is checked, folds wallet +
-  bank Silver into the simulated inventory as a synthetic Silver entry.
+- `ImportModal.svelte` owns all three paste tabs (`ImportTab = 'inventory' |
+'bank' | 'completed'`) and their paste-text/message state internally;
+  `open`/`tab` are `$bindable` props so `+page.svelte` and other components
+  (the header's Import button, the inventory panel's import icon, the
+  questline picker's import-completed icon) can all open it on a given tab
+  by just assigning those two bindables. Collapsing the how-to-help panel on
+  tab change is a `$effect` reacting to the `tab` prop inside `ImportModal`
+  itself, not a function callers have to remember to call — this replaces
+  the old `switchImportTab` convention and can't be forgotten from a new call
+  site. The Bank tab feeds `parseBankPaste` and, when `includeBankBalance` is
+  checked, folds wallet + bank Silver into the simulated inventory as a
+  synthetic Silver entry.
 
 ## Workflow notes
 

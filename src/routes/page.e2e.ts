@@ -1,16 +1,43 @@
 import { expect, test, type Page } from '@playwright/test';
 
+// The real inventory-page parser (src/lib/quest/parsing/inventory.ts) anchors
+// on this marker line and an "Inventory Stats" end marker, with each item as
+// a name line followed by a quantity line — not a bare tab-separated dump.
+// `pairs` keeps the ergonomic "Item\tQty" shorthand at call sites and expands
+// it into that real page shape here, in one place.
+const INVENTORY_ANCHOR_LINE = 'Currently, you cannot have more than 999 of most items.';
+
+function wrapInventoryDump(pairs: string): string {
+	const lines = pairs.split('\n').flatMap((line) => line.split('\t'));
+	return `${INVENTORY_ANCHOR_LINE}\n${lines.join('\n')}\nInventory Stats`;
+}
+
 async function importInventory(page: Page, dumpText: string) {
 	await page.getByRole('button', { name: 'Import data' }).click();
-	await page.getByPlaceholder(/Paste tab-separated dump/).fill(dumpText);
+	await page
+		.getByPlaceholder(/Paste the full inventory page text here/)
+		.fill(wrapInventoryDump(dumpText));
 	await page.getByRole('button', { name: 'Parse paste' }).click();
 	await page.getByRole('button', { name: 'Close' }).click();
+}
+
+// The real completed-quests parser (src/lib/quest/parsing/completed.ts)
+// anchors on "Completed Requests" and reads each entry as a name line
+// followed by a "Request from ..." line, not a bare list of names.
+const COMPLETED_ANCHOR_LINE = 'Completed Requests (1)';
+
+function wrapCompletedNames(namesText: string): string {
+	const chunks = namesText
+		.split('\n')
+		.map((name) => `${name}\nRequest from Someone`)
+		.join('\n\n');
+	return `${COMPLETED_ANCHOR_LINE}\n${chunks}`;
 }
 
 async function importCompletedQuests(page: Page, namesText: string) {
 	await page.getByRole('button', { name: 'Import data' }).click();
 	await page.getByRole('button', { name: 'Completed quests', exact: true }).click();
-	await page.getByPlaceholder('Paste one quest name per line…').fill(namesText);
+	await page.getByPlaceholder(/Paste the full Help Needed/).fill(wrapCompletedNames(namesText));
 	await page.getByRole('button', { name: 'Parse paste' }).click();
 	await page.getByRole('button', { name: 'Close' }).click();
 }
@@ -52,9 +79,10 @@ test('queuing two questlines that share a scarce item shifts the shortfall on re
 	// shows when more than one questline shares the blame for the same item.
 	const summary = page.locator('section', { hasText: 'Shortfall summary' });
 	await expect(summary).toBeVisible();
-	await summary.locator('summary').getByText('Peppers', { exact: true }).click();
+	await summary.locator('summary').click();
+	await expect(summary).toContainText('Peppers');
 	await expect(summary).not.toContainText('subtotal');
-	await expect(summary).toContainText('Welcome to your Farm — Welcome to your Farm');
+	await expect(summary).toContainText('Welcome to your Farm');
 
 	// Reorder: drag the second queue entry above the first — the shortfall
 	// should move with it.

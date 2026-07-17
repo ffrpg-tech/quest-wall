@@ -1,4 +1,4 @@
-import type { InventoryEntry } from './types';
+import type { InventoryEntry } from '../types';
 
 const STORAGE_KEY = 'farmrpg-quest-tracker:completed-v1';
 const DARK_MODE_KEY = 'farmrpg-quest-tracker:dark-mode';
