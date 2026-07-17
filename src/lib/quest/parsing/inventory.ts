@@ -135,10 +135,23 @@ function parseInventoryBlock(afterAnchor: string): ParsedInventoryLine[] {
 	return results;
 }
 
-/** Bridges parser output into the existing `InventoryEntry`/`mergeInventory` flow. */
-export function toInventoryEntries(parsed: ParsedInventoryLine[]): Map<string, InventoryEntry> {
+/**
+ * Bridges parser output into the existing `InventoryEntry`/`mergeInventory`
+ * flow. Lines for items that aren't required by any quest (not in
+ * `knownItemNames`) are dropped here rather than in `parseInventoryPaste` —
+ * that parser's "Inventory Stats" count cross-check must run against the
+ * player's true full paste, not a pre-filtered subset. `knownItemNames` is
+ * passed in rather than imported so this stays a pure, synchronously
+ * testable function — the caller owns loading the (fetched, async) item
+ * catalog.
+ */
+export function toInventoryEntries(
+	parsed: ParsedInventoryLine[],
+	knownItemNames: Set<string>
+): Map<string, InventoryEntry> {
 	const result = new Map<string, InventoryEntry>();
 	for (const line of parsed) {
+		if (!knownItemNames.has(line.itemName)) continue;
 		result.set(line.itemName, {
 			item: line.itemName,
 			qty: line.quantity,

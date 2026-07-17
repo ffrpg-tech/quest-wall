@@ -16,6 +16,10 @@ the page parses this file directly, so an entry added here is what users see.
 - A brief confirmation now appears right after a paste is successfully parsed.
 - Item icons now appear next to item names in the inventory list, results, and shortfall summary.
 
+### Changed
+
+- Pasted inventory items that aren't needed by any quest are no longer imported, keeping the inventory list focused on what's actually relevant.
+
 ### Fixed
 
 - Quest data no longer gets re-fetched every time you navigate back to the calculator page — it now loads once per tab.

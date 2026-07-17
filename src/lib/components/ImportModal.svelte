@@ -13,6 +13,9 @@
 	import { parseCompletedQuestNames, CompletedQuestParseError } from '$lib/quest/parsing/completed';
 	import { parseBankPaste, BankParseError } from '$lib/quest/parsing/bank';
 	import { saveInventoryBaseline } from '$lib/quest/storage/persistence';
+	import { getItemsState } from '$lib/quest/storage/itemsStore.svelte';
+
+	const itemsState = getItemsState();
 
 	type ImportTab = 'inventory' | 'bank' | 'completed';
 
@@ -108,9 +111,14 @@
 			return;
 		}
 
+		if (!itemsState.itemsHydrated) {
+			parseMessage = 'Item data is still loading — try again in a moment.';
+			return;
+		}
+
 		let parsed;
 		try {
-			parsed = toInventoryEntries(parseInventoryPaste(pasteText));
+			parsed = toInventoryEntries(parseInventoryPaste(pasteText), itemsState.itemNames);
 		} catch (err) {
 			parseMessage = parseErrorMessage(err, InventoryParseError);
 			return;

@@ -230,13 +230,31 @@ haha currently, you cannot have more than 5 friends lol
 });
 
 describe('toInventoryEntries', () => {
+	const knownItemNames = new Set(['Wood', 'Iron']);
+
 	it('maps parsed lines to InventoryEntry, defaulting maxed to false', () => {
-		const map = toInventoryEntries([
-			{ itemName: 'Wood', quantity: 42, category: 'Items' },
-			{ itemName: 'Iron', quantity: 5, category: 'Items', maxed: true }
-		]);
+		const map = toInventoryEntries(
+			[
+				{ itemName: 'Wood', quantity: 42, category: 'Items' },
+				{ itemName: 'Iron', quantity: 5, category: 'Items', maxed: true }
+			],
+			knownItemNames
+		);
 
 		expect(map.get('Wood')).toEqual({ item: 'Wood', qty: 42, maxed: false });
 		expect(map.get('Iron')).toEqual({ item: 'Iron', qty: 5, maxed: true });
+	});
+
+	it('drops lines for items not in knownItemNames', () => {
+		const map = toInventoryEntries(
+			[
+				{ itemName: 'Wood', quantity: 42, category: 'Items' },
+				{ itemName: 'Mystery Widget', quantity: 1, category: 'Items' }
+			],
+			knownItemNames
+		);
+
+		expect(map.has('Wood')).toBe(true);
+		expect(map.has('Mystery Widget')).toBe(false);
 	});
 });
