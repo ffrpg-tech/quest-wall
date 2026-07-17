@@ -39,25 +39,19 @@
 				class="font-medium text-emerald-600 hover:underline dark:text-emerald-400">buddy.farm</a
 			>
 			already covers every questline and item. What it doesn't have is a checklist. So people make their
-			own: <strong>Quest Wall</strong> sheets, one questline at a time, by whoever cared enough to track
-			it. That's why coverage is spotty — only the popular chains get one, and everything else you're
-			figuring out by trial and error.
+			own: <strong>Quest Wall</strong> sheets, one questline at a time. However, it is mainly focused
+			on main quests, and not the rest of the questlines. So the other quests are left without getting its own sheet.
 		</p>
 		<p>
-			The sheets that do exist just give you a
-			<span class="font-semibold text-red-600 dark:text-red-400">static total</span>: "needs 1,200
-			bacon." It doesn't tell you you've already spent 500 of it by quest 4, and nothing decrements
-			as you play, so you end up <strong>recalculating by hand</strong> after every turn-in — and a flat
-			total can't tell you where you'll wall anyway.
+			Additionally, because the sheets only cover one questline at a time, it is hard to see the bigger picture.
+			While it is true that we must focus on one at a time, it is also true that we need to plan ahead. Say you
+			have two sheets tackling different questlines — you end up syncing the same inventory into both by hand,
+			and still have to manually check whether you have enough items to clear the next quest on either one.
 		</p>
 		<p>
-			Quest 8 might be the one that actually stops you — a total for the whole chain won't show
-			that. You need to walk it <em>quest by quest</em>.
-		</p>
-		<p>
-			This was how my experience went through when I was working on my ATI quest. Eventually, I figured this might be the same case later after ATI.
-			That's when I planned on creating a tool that can help me and the community to plan out the questlines and see where we will wall. 
-			I also wanted to make it easy for anyone to use, so I made it a web app that can be accessed from anywhere: from your desktop or mobile.
+			That's exactly what happened to me while working on my ATI quest, and I could tell it wouldn't stop being a problem once ATI was done.
+			So I decided to build a tool that could plan out questlines and show where I — and anyone else — would wall.
+			I wanted it to be usable by anyone too, so it's a web app, accessible from desktop or mobile.
 		</p>
 		<p>
 			The premise is: paste your inventory and your finished questlines, then pick your next questlines — it walks the chain and shows you exactly where you
