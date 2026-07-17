@@ -2,6 +2,7 @@
 	import { ChevronRight, Search } from '@lucide/svelte';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
 	import type { QuestlineDiffResult, QueueItemShortfall } from '$lib/quest/calc/diff';
+	import ItemIcon from './ItemIcon.svelte';
 
 	let {
 		diffResults,
@@ -59,6 +60,7 @@
 						{#each filteredShortfallSummary as s (s.item)}
 							<li class="border-b border-gray-100 py-1 dark:border-gray-700">
 								<div class="flex items-center gap-1.5 font-medium text-gray-900 dark:text-gray-100">
+									<ItemIcon name={s.item} />
 									{s.item}
 									{#if s.capped}
 										<span

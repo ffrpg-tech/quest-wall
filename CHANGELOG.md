@@ -14,6 +14,7 @@ the page parses this file directly, so an entry added here is what users see.
 ### Added
 
 - A brief confirmation now appears right after a paste is successfully parsed.
+- Item icons now appear next to item names in the inventory list, results, and shortfall summary.
 
 ### Fixed
 

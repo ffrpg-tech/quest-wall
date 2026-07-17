@@ -4,6 +4,7 @@
 	import { canonicalUrl, DEFAULT_DESCRIPTION, SITE_NAME } from '$lib/seo';
 	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
 	import { loadQuestlines, getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
+	import { loadItems } from '$lib/quest/storage/itemsStore.svelte';
 	import { inventoryToMap } from '$lib/quest/parsing/inventory';
 	import {
 		aggregateQueueShortfalls,
@@ -96,6 +97,7 @@
 
 	onMount(() => {
 		void loadQuestlines();
+		void loadItems();
 	});
 
 	const questlineOptions = $derived(

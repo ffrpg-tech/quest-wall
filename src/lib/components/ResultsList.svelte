@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChevronRight } from '@lucide/svelte';
 	import type { QuestlineDiffResult } from '$lib/quest/calc/diff';
+	import ItemIcon from './ItemIcon.svelte';
 
 	let {
 		diffResults,
@@ -93,8 +94,11 @@
 													<ul class="space-y-0.5 text-xs">
 														{#each q.shortfalls as s (s.item)}
 															<li>
-																<span class="font-medium text-gray-700 dark:text-gray-300"
-																	>{s.item}</span
+																<span
+																	class="inline-flex items-center gap-1 font-medium text-gray-700 dark:text-gray-300"
+																>
+																	<ItemIcon name={s.item} />
+																	{s.item}</span
 																>: need
 																<span class="tabular-nums text-gray-500 dark:text-gray-400"
 																	>{s.needed}</span

@@ -1,2 +1,5 @@
 /questlines.json
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/items.json
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

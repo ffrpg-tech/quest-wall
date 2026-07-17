@@ -3,6 +3,7 @@
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
 	import type { InventoryEntry } from '$lib/quest/types';
+	import ItemIcon from './ItemIcon.svelte';
 
 	let {
 		inventory = $bindable(),
@@ -107,7 +108,12 @@
 			<tbody>
 				{#each filteredInventory as entry (entry.item)}
 					<tr class="border-t border-gray-100 dark:border-gray-700">
-						<td class="p-2">{entry.item}{entry.maxed ? ' (MAX)' : ''}</td>
+						<td class="p-2">
+							<div class="flex items-center gap-1.5">
+								<ItemIcon name={entry.item} />
+								{entry.item}{entry.maxed ? ' (MAX)' : ''}
+							</div>
+						</td>
 						<td class="p-2">
 							<input
 								type="number"
