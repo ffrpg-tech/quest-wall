@@ -2,4 +2,4 @@
 User-agent: *
 Disallow:
 
-Sitemap: https://farmrpg-quest-tracker.example.com/sitemap.xml
+Sitemap: https://farm-rpg-quest-tracker.pages.dev/sitemap.xml
