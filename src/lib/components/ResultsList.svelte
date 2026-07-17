@@ -50,7 +50,7 @@
 						>
 							<table class="w-full text-sm">
 								<thead
-									class="sticky top-0 bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+									class="sticky top-0 z-10 bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
 								>
 									<tr>
 										<th class="p-2">Done</th>
@@ -80,13 +80,13 @@
 											<td class="p-2" class:line-through={q.done}>{q.questName}</td>
 											<td class="p-2">
 												{#if q.done}
-													<span class="text-gray-400">done</span>
+													<span class="text-gray-400">Done</span>
 												{:else if q.ok}
-													<span class="text-emerald-600">OK</span>
+													<span class="text-emerald-600">Ready</span>
 												{:else if qi === diffResult.wallPointIndex}
-													<span class="font-semibold text-red-600">WALL POINT</span>
+													<span class="font-semibold text-red-600">Wall Point</span>
 												{:else}
-													<span class="text-amber-600">short</span>
+													<span class="text-amber-600">Short</span>
 												{/if}
 											</td>
 											<td class="p-2">

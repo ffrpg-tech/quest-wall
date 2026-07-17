@@ -97,7 +97,7 @@
 	>
 		<table class="w-full table-fixed text-sm">
 			<thead
-				class="sticky top-0 bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
+				class="sticky top-0 z-10 bg-gray-50 text-left text-xs uppercase text-gray-500 dark:bg-gray-800 dark:text-gray-400"
 			>
 				<tr>
 					<th class="p-2">Item</th>
@@ -111,7 +111,9 @@
 						<td class="p-2">
 							<div class="flex items-center gap-1.5">
 								<ItemIcon name={entry.item} />
-								{entry.item}{entry.maxed ? ' (MAX)' : ''}
+								{entry.item}{#if entry.maxed}<span class="text-red-600 dark:text-red-400"
+										> (MAX)</span
+									>{/if}
 							</div>
 						</td>
 						<td class="p-2">

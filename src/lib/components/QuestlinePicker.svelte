@@ -143,8 +143,15 @@
 							class:dark:hover:bg-emerald-800={queued}
 						>
 							<span>{g.name}</span>
-							<span class="text-xs text-gray-400"
-								>{doneCount > 0 ? `${doneCount}/${g.questCount}` : g.questCount}</span
+							<span
+								class="text-xs"
+								class:text-red-600={doneCount === 0}
+								class:dark:text-red-400={doneCount === 0}
+								class:text-amber-600={doneCount > 0 && doneCount < g.questCount}
+								class:dark:text-amber-400={doneCount > 0 && doneCount < g.questCount}
+								class:text-emerald-600={doneCount >= g.questCount}
+								class:dark:text-emerald-400={doneCount >= g.questCount}
+								>{doneCount}/{g.questCount}</span
 							>
 						</button>
 					</li>
