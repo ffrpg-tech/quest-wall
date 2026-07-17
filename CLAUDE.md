@@ -16,10 +16,11 @@ be monetized.
 ## Data pipeline (read before touching quest/item data)
 
 - `static/questlines.json` and `src/lib/data/items.json` are **generated,
-  not committed to this repo** — see the maintainer for how to regenerate
-  them locally; don't hand-edit them, and don't add a committed data-fetch
-  script or credentials back into version control without checking first.
-  `questlines.json` lives under `static/` (not `src/lib/data/`) and is
+  not committed to this repo** — the regeneration script and instructions
+  live in `api/` (`api/README.md`, `api/fetch-questlines.mjs`), which is
+  itself gitignored in full; don't hand-edit the data files, and don't
+  un-gitignore the `api/` directory or its credentials. `questlines.json`
+  lives under `static/` (not `src/lib/data/`) and is
   `fetch()`-ed by the client at runtime rather than statically imported, so
   it ships as its own cacheable request instead of bloating the page's JS
   bundle — see `_headers` (project root) for the cache headers. Don't switch
@@ -81,6 +82,13 @@ be monetized.
   earlier in the queue gets first claim on scarce shared items. This is
   intentionally ordering-dependent; don't "fix" it to diff each questline
   independently.
+- Both entry points also take an optional `caps: Map<string, number>`
+  (item name → known storage cap, from "MAX ON HAND" lines in an inventory
+  paste — see `inventory.ts`). A `Shortfall`'s `capped` flag is set when a
+  single requirement exceeds the item's cap — that shortfall can't be
+  cleared by farming alone until the cap is raised or the item is spent down
+  elsewhere, which the UI surfaces as a distinct CAPPED badge rather than an
+  ordinary shortfall.
 - `aggregateQueueShortfalls(results)` rolls up each questline's already-
   computed `totalShortfalls` into one queue-wide per-item breakdown
   (`byQuestline` → `byQuest`), without re-walking any inventory.
@@ -92,10 +100,30 @@ be monetized.
   keeps `needed`/`have`/`short` mutually consistent (`have = needed - short`)
   — a past bug let `needed`/`have` freeze at the first quest's values while
   only `short` kept summing correctly. There's a regression test for this in
-  `diff.spec.ts`; keep it green if you touch either rollup.
+  `diff.spec.ts`; keep it green if you touch either rollup. The same helper
+  also carries `capped` through the rollup, so a capped shortfall at the
+  chain level stays flagged at the queue level too.
 - `questKey(questlineName, questName)` lives in `types.ts` (not
   `persistence.ts`) — `diff.ts` is a pure calculation module and shouldn't
   import from the storage-specific persistence module.
+
+## Paste parsing (`src/lib/quest/pasteParsing.ts`, `inventory.ts`, `bank.ts`, `completed.ts`)
+
+- `pasteParsing.ts` holds low-level helpers shared across the three page
+  parsers (`indexOfCaseInsensitive`, `parseCommaNumber`, `toTrimmedLines`) —
+  fix comma-number or line-splitting bugs there once rather than in each
+  parser.
+- `inventory.ts` treats `"MAX ON HAND"` as the only status flag that sets an
+  entry's `maxed` field; a maxed entry's pasted qty is trusted as the item's
+  real storage cap and feeds `diff.ts`'s `caps` map from `+page.svelte`.
+  Editing a row's qty by hand clears `maxed`, since a manual edit is the
+  player's own claim, not a re-observed cap.
+- `bank.ts` parses a pasted Bank-page paste for `walletSilver` ("Deposit
+  All") and `bankSilver` ("Withdraw All") — it only reads inside the
+  "BULK OPTIONS" block via exact (not substring) line matching, since the
+  page also has a "Deposit"/"Withdraw" (no "All") pair earlier for one-off
+  amounts. It's deliberately decoupled from `inventory.ts`: it only ever
+  produces a Silver figure and knows nothing about items.
 
 ## Persistence (`src/lib/quest/persistence.ts`)
 
@@ -123,6 +151,13 @@ be monetized.
   panels; `shortfallSummary` (from `aggregateQueueShortfalls`) drives the
   combined "Shortfall summary" section. Both are `$derived` from
   `selectedQuestlines` + `inventoryMap` + `completed`.
+- The import modal has three tabs (`ImportTab = 'inventory' | 'bank' |
+  'completed'`), state-driven via `importTab` / `switchImportTab` /
+  `openImportModal` — `switchImportTab` is the one place that owns
+  collapsing the how-to-help panel on tab change, so call it (not a raw
+  `importTab = ...` assignment) from any new call site. The Bank tab feeds
+  `parseBankPaste` and, when `includeBankBalance` is checked, folds wallet +
+  bank Silver into the simulated inventory as a synthetic Silver entry.
 
 ## Workflow notes
 

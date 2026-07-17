@@ -24,11 +24,16 @@ monetized. All credit for FarmRPG itself goes to its developers.
    shared simulated inventory as each quest's requirements are consumed, and
    reports the first quest in each chain where you don't have enough on hand.
    A combined "Shortfall summary" section rolls up every missing item across
-   the whole queue, broken down by questline and quest.
-5. Mark quests done as you complete them — progress, inventory, and the
+   the whole queue, broken down by questline and quest. Shortfalls that
+   exceed a known storage cap (from a "MAX ON HAND" line in your inventory
+   paste) are flagged as CAPPED, since no amount of farming clears those
+   until the cap is raised or the item is spent down elsewhere.
+5. You can also paste the FarmRPG Bank page (Deposit All / Withdraw All
+   figures) to fold your Silver on hand into the simulated inventory, and
+   paste your completed-requests list to bulk-mark quests done.
+6. Mark quests done as you complete them — progress, inventory, and the
    questline queue are all saved to `localStorage` and progress can be
-   exported/imported as JSON. You can also paste your completed-requests list
-   the same way to bulk-mark quests done.
+   exported/imported as JSON.
 
 Quest and item data (`static/questlines.json`, `src/lib/data/items.json`) is
 generated and **not committed to this repo**. `questlines.json` lives under
@@ -40,26 +45,38 @@ request — see `_headers` for the cache headers.
 
 ```
 src/lib/quest/
-  types.ts          Shared types (Quest, Questline, InventoryEntry) + questKey()
-  inventory.ts       Parses a pasted inventory-page paste into structured items, merges into state
-  completed.ts        Parses a pasted "Completed Requests" paste into a list of quest names
-  diff.ts             Core calculation: walks questline(s) against inventory, finds the wall point(s);
-                      diffQuestline (single) and diffQuestlineQueue/aggregateQueueShortfalls (queue)
-  persistence.ts     localStorage read/write for completed-quest tracking, inventory, questline
-                      queue, dark mode, JSON export/import
+  types.ts            Shared types (Quest, Questline, InventoryEntry) + questKey()
+  pasteParsing.ts      Low-level helpers shared by inventory.ts/bank.ts (case-insensitive anchor
+                       search, comma-number parsing, line splitting) over messy pasted page text
+  inventory.ts         Parses a pasted Inventory-page paste into structured items (incl. "MAX ON
+                       HAND" storage caps), merges into state
+  bank.ts               Parses a pasted Bank-page paste into wallet/bank Silver figures
+  completed.ts          Parses a pasted "Completed Requests" paste into a list of quest names
+  diff.ts               Core calculation: walks questline(s) against inventory, finds the wall
+                       point(s) and flags CAPPED shortfalls against known storage caps;
+                       diffQuestline (single) and diffQuestlineQueue/aggregateQueueShortfalls (queue)
+  persistence.ts       localStorage read/write for completed-quest tracking, inventory, questline
+                       queue, dark mode, JSON export/import
 static/
-  questlines.json    Generated, not committed — quests grouped into questlines, fetched by the
-                      client at runtime
+  questlines.json      Generated, not committed — quests grouped into questlines, fetched by the
+                       client at runtime
+  questlines-meta.json Generated, not committed — metadata about the last data regeneration
 src/lib/data/
-  items.json          Generated, not committed — all known item names (for autosuggest/validation)
+  items.json            Generated, not committed — all known item names (for autosuggest/validation)
 src/lib/
-  seo.ts              Site metadata constants + canonicalUrl() helper, used for meta tags/JSON-LD
+  seo.ts                Site metadata constants + canonicalUrl() helper, used for meta tags/JSON-LD
+  changelog.ts           Parses CHANGELOG.md (Keep a Changelog format) for display on /changelog
+  paraglide/              Generated i18n runtime (Paraglide/inlang) — do not hand-edit; messages
+                         live in messages/en.json and messages/es.json
 src/routes/
-  +page.svelte        The whole app UI (inventory input, questline queue picker, results,
-                      shortfall summary, tutorial modal)
-  about/+page.svelte   Static "about" page
-  credits/+page.svelte Static credits/acknowledgements page
-  layout.css           Tailwind entry + dark mode variant
+  +page.svelte          The whole app UI (inventory/Bank/completed-requests import tabs,
+                       questline queue picker, results, shortfall summary, tutorial modal)
+  about/+page.svelte     Static "about" page
+  changelog/+page.svelte Renders CHANGELOG.md via changelog.ts
+  credits/+page.svelte   Static credits/acknowledgements page
+  layout.css             Tailwind entry + dark mode variant
+api/
+  fetch-questlines.mjs  Gitignored data-regeneration script — not committed, see api/README.md
 ```
 
 ## Developing
@@ -77,9 +94,20 @@ npm run dev -- --open
 ## Quest data
 
 `static/questlines.json` and `src/lib/data/items.json` are generated and not
-committed to this repo — see the maintainer for details on regenerating
-them. Note: "Silver" (in-game currency) does show up as an item requirement
-on some quests — that's expected, not a data bug.
+committed to this repo — see `api/README.md` (gitignored, maintainer-only)
+for how to regenerate them. Note: "Silver" (in-game currency) does show up
+as an item requirement on some quests — that's expected, not a data bug.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md). Quest/item data isn't edited via
+pull request — use the in-app "Feedback / report an issue" button instead.
+
+## Internationalization
+
+UI strings are managed via [Paraglide](https://inlang.com/m/gerre34r/library-inlang-paraglideJs)
+(`messages/en.json`, `messages/es.json`); `src/lib/paraglide/` is generated
+from those and shouldn't be hand-edited.
 
 ## Testing & checks
 
@@ -91,11 +119,13 @@ npm run check         # svelte-check / TypeScript
 npm run lint          # prettier + eslint
 ```
 
-## Building
+## Building & deploying
 
 ```sh
 npm run build
+npm run deploy   # vite build && wrangler pages deploy .svelte-kit/cloudflare
 ```
 
 Preview the production build with `npm run preview`. Deploys to Cloudflare
-Pages via `@sveltejs/adapter-cloudflare`.
+Pages manually via `wrangler` (see `api/README.md`) rather than Cloudflare's
+git-triggered auto-build, since the generated data files aren't in git.
