@@ -86,4 +86,88 @@ check`;
 			CompletedQuestParseError
 		);
 	});
+
+	it('ignores a "Personal Requests" section appearing before the anchor', () => {
+		// Real-world page shape: Personal Requests (PHR-funded, single-player
+		// requests) get their own "Request from ..." chunk structure and sit
+		// just above "Completed Requests" — the anchor-based slice must still
+		// skip past it like it does for Active/Special Requests.
+		const text = `Personal Requests (1)
+
+Helping Hand
+Request from Cecil
+60.58%
+
+Completed Requests (1)
+
+A Towering Investment X
+Request from Cecil -  Main Quest
+Completed on 2026-07-15 05:10:55
+30,203 players (2.62%) have completed
+check`;
+
+		expect(parseCompletedQuestNames(text)).toEqual(['A Towering Investment X']);
+	});
+
+	it('preserves a curly apostrophe in a quest title (no straight-quote normalization)', () => {
+		// static/questlines.json stores quest names with the same typographic
+		// apostrophe (U+2019) the game itself renders — normalizing to a
+		// straight quote here would silently break matching against it.
+		const text = `Completed Requests (1)
+
+The Rocket’s Red Glare VII
+Request from Beatrix
+Completed on 2026-07-16 18:53:49
+34,932 players (3.02%) have completed
+check`;
+
+		expect(parseCompletedQuestNames(text)).toEqual(['The Rocket’s Red Glare VII']);
+	});
+
+	it('throws when the parsed quest count does not match the anchor\'s stated count', () => {
+		const text = `Completed Requests (2)
+
+A Towering Investment X
+Request from Cecil -  Main Quest
+Completed on 2026-07-15 05:10:55
+30,203 players (2.62%) have completed
+check`;
+
+		expect(() => parseCompletedQuestNames(text)).toThrow(CompletedQuestParseError);
+	});
+
+	it('resolves to the real anchor even when a live chat message contains anchor-like text first', () => {
+		const text = `SomePlayer
+have you checked your completed requests today?
+05:24:34 AM
+
+Completed Requests (1)
+
+A Towering Investment X
+Request from Cecil -  Main Quest
+Completed on 2026-07-15 05:10:55
+30,203 players (2.62%) have completed
+check`;
+
+		expect(parseCompletedQuestNames(text)).toEqual(['A Towering Investment X']);
+	});
+
+	it('falls back to an earlier valid anchor when the last occurrence is a false chat match', () => {
+		// The real anchor comes first here, and a later chat message (after the
+		// real block) happens to contain anchor-like text with no valid entries
+		// following it. Picking the last occurrence blindly would fail (no
+		// completed-quest chunks after it) and throw, even though a good paste
+		// exists earlier in the same text.
+		const text = `Completed Requests (1)
+
+A Towering Investment X
+Request from Cecil -  Main Quest
+Completed on 2026-07-15 05:10:55
+30,203 players (2.62%) have completed
+check
+
+SomePlayer said something about completed requests`;
+
+		expect(parseCompletedQuestNames(text)).toEqual(['A Towering Investment X']);
+	});
 });
