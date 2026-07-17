@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { fade } from 'svelte/transition';
-	import { base, resolve } from '$app/paths';
+	import { resolve } from '$app/paths';
 	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import {
 		Sun,
@@ -17,13 +17,8 @@
 		TriangleAlert
 	} from '@lucide/svelte';
 	import { canonicalUrl, DEFAULT_DESCRIPTION, SITE_NAME } from '$lib/seo';
-	import {
-		questKey,
-		isQuestlinesData,
-		type InventoryEntry,
-		type QuestlinesData,
-		type Questline
-	} from '$lib/quest/types';
+	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
+	import { loadQuestlines, getQuestlinesState } from '$lib/quest/questlinesStore.svelte';
 	import {
 		parseInventoryPaste,
 		InventoryParseError,
@@ -165,49 +160,16 @@
 	// Fetched as a static asset (rather than imported) so it ships as its own
 	// cacheable request instead of being bundled into this page's JS chunk —
 	// see _headers (project root) for the cache headers and api/fetch-questlines.mjs
-	// for where it's generated.
-	let questlines = $state<QuestlinesData>({});
-	let questlinesHydrated = $state(false);
-	let questlinesError = $state(false);
+	// for where it's generated. Loaded once per tab via questlinesStore, not
+	// re-fetched on every client-side remount of this page.
+	const questlinesState = getQuestlinesState();
+	const questlines = $derived(questlinesState.questlines);
+	const questlinesHydrated = $derived(questlinesState.questlinesHydrated);
+	const questlinesError = $derived(questlinesState.questlinesError);
+	const dataLastUpdated = $derived(questlinesState.dataLastUpdated);
 
-	onMount(async () => {
-		try {
-			const res = await fetch(`${base}/questlines.json`);
-			if (!res.ok) throw new Error(`questlines.json fetch failed: ${res.status}`);
-			const parsed: unknown = await res.json();
-			// Guards against a malformed/short fetch-script run shipping bad data
-			// straight to players.
-			if (!isQuestlinesData(parsed)) throw new Error('questlines.json failed shape validation');
-			questlines = parsed;
-		} catch (err) {
-			console.error(err);
-			questlinesError = true;
-		} finally {
-			questlinesHydrated = true;
-		}
-	});
-
-	// When api/fetch-questlines.mjs last actually ran, not when this build
-	// happened to deploy. Best-effort: a missing/malformed meta file just
-	// means the date doesn't render, it's not worth failing over.
-	let dataLastUpdated = $state<string | null>(null);
-
-	onMount(async () => {
-		try {
-			const res = await fetch(`${base}/questlines-meta.json`);
-			if (!res.ok) return;
-			const parsed: unknown = await res.json();
-			if (
-				parsed &&
-				typeof parsed === 'object' &&
-				'dataLastUpdated' in parsed &&
-				typeof parsed.dataLastUpdated === 'string'
-			) {
-				dataLastUpdated = parsed.dataLastUpdated;
-			}
-		} catch (err) {
-			console.error(err);
-		}
+	onMount(() => {
+		void loadQuestlines();
 	});
 
 	const dataLastUpdatedLabel = $derived(
