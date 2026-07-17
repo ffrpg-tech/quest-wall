@@ -1,4 +1,4 @@
-import type { InventoryEntry } from './types';
+import type { InventoryEntry } from '../types';
 import { indexOfCaseInsensitive, parseCommaNumber, toTrimmedLines } from './pasteParsing';
 
 // Client-side only — parses a manual select-all + copy of the player's raw

@@ -18,21 +18,21 @@
 	} from '@lucide/svelte';
 	import { canonicalUrl, DEFAULT_DESCRIPTION, SITE_NAME } from '$lib/seo';
 	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
-	import { loadQuestlines, getQuestlinesState } from '$lib/quest/questlinesStore.svelte';
+	import { loadQuestlines, getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
 	import {
 		parseInventoryPaste,
 		InventoryParseError,
 		toInventoryEntries,
 		inventoryToMap,
 		mergeInventory
-	} from '$lib/quest/inventory';
-	import { parseCompletedQuestNames, CompletedQuestParseError } from '$lib/quest/completed';
-	import { parseBankPaste, BankParseError } from '$lib/quest/bank';
+	} from '$lib/quest/parsing/inventory';
+	import { parseCompletedQuestNames, CompletedQuestParseError } from '$lib/quest/parsing/completed';
+	import { parseBankPaste, BankParseError } from '$lib/quest/parsing/bank';
 	import {
 		aggregateQueueShortfalls,
 		diffQuestlineQueue,
 		type QuestlineDiffResult
-	} from '$lib/quest/diff';
+	} from '$lib/quest/calc/diff';
 	import {
 		loadCompleted,
 		saveCompleted,
@@ -47,7 +47,7 @@
 		loadLastSeenChangelogVersion,
 		loadInventoryBaseline,
 		saveInventoryBaseline
-	} from '$lib/quest/persistence';
+	} from '$lib/quest/storage/persistence';
 	import { parseChangelog, latestVersion } from '$lib/changelog';
 	import changelogRaw from '../../CHANGELOG.md?raw';
 

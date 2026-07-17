@@ -66,7 +66,15 @@ be monetized.
   overwrite a saved preference with the default.
 - Icons: use `@lucide/svelte`, **not** the deprecated `lucide-svelte` package.
 
-## Core calculation invariants (`src/lib/quest/diff.ts`)
+## Folder layout (`src/lib/quest/`)
+
+- `types.ts` (shared types + `questKey()`) sits at the top level; everything
+  else is grouped by concern: `parsing/` (paste parsers), `calc/` (the diff
+  engine), `storage/` (localStorage persistence + the questlines fetch
+  store). Cross-references below still use bare filenames
+  (`diff.ts`, `persistence.ts`, etc.) — resolve them against this layout.
+
+## Core calculation invariants (`src/lib/quest/calc/diff.ts`)
 
 - `walkQuestline` is the shared internal engine: it walks a single questline's
   quests in order against a mutated `Map` inventory, decrementing per
@@ -107,7 +115,7 @@ be monetized.
   `persistence.ts`) — `diff.ts` is a pure calculation module and shouldn't
   import from the storage-specific persistence module.
 
-## Paste parsing (`src/lib/quest/pasteParsing.ts`, `inventory.ts`, `bank.ts`, `completed.ts`)
+## Paste parsing (`src/lib/quest/parsing/pasteParsing.ts`, `inventory.ts`, `bank.ts`, `completed.ts`)
 
 - `pasteParsing.ts` holds low-level helpers shared across the three page
   parsers (`indexOfCaseInsensitive`, `parseCommaNumber`, `toTrimmedLines`) —
@@ -125,7 +133,7 @@ be monetized.
   amounts. It's deliberately decoupled from `inventory.ts`: it only ever
   produces a Silver figure and knows nothing about items.
 
-## Persistence (`src/lib/quest/persistence.ts`)
+## Persistence (`src/lib/quest/storage/persistence.ts`)
 
 - All reads/writes go through `hasLocalStorage()` guard — this file must stay
   SSR-safe.

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { aggregateQueueShortfalls, diffQuestline, diffQuestlineQueue } from './diff';
-import { questKey, type Questline } from './types';
+import { questKey, type Questline } from '../types';
 
 const questline: Questline = {
 	name: 'Test Chain',

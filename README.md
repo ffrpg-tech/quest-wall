@@ -45,18 +45,22 @@ request — see `_headers` for the cache headers.
 
 ```
 src/lib/quest/
-  types.ts            Shared types (Quest, Questline, InventoryEntry) + questKey()
-  pasteParsing.ts      Low-level helpers shared by inventory.ts/bank.ts (case-insensitive anchor
+  types.ts             Shared types (Quest, Questline, InventoryEntry) + questKey()
+  parsing/
+    pasteParsing.ts    Low-level helpers shared by inventory.ts/bank.ts (case-insensitive anchor
                        search, comma-number parsing, line splitting) over messy pasted page text
-  inventory.ts         Parses a pasted Inventory-page paste into structured items (incl. "MAX ON
+    inventory.ts       Parses a pasted Inventory-page paste into structured items (incl. "MAX ON
                        HAND" storage caps), merges into state
-  bank.ts               Parses a pasted Bank-page paste into wallet/bank Silver figures
-  completed.ts          Parses a pasted "Completed Requests" paste into a list of quest names
-  diff.ts               Core calculation: walks questline(s) against inventory, finds the wall
+    bank.ts            Parses a pasted Bank-page paste into wallet/bank Silver figures
+    completed.ts       Parses a pasted "Completed Requests" paste into a list of quest names
+  calc/
+    diff.ts            Core calculation: walks questline(s) against inventory, finds the wall
                        point(s) and flags CAPPED shortfalls against known storage caps;
                        diffQuestline (single) and diffQuestlineQueue/aggregateQueueShortfalls (queue)
-  persistence.ts       localStorage read/write for completed-quest tracking, inventory, questline
+  storage/
+    persistence.ts     localStorage read/write for completed-quest tracking, inventory, questline
                        queue, dark mode, JSON export/import
+    questlinesStore.svelte.ts  Fetches/caches questlines.json + questlines-meta.json once per tab
 static/
   questlines.json      Generated, not committed — quests grouped into questlines, fetched by the
                        client at runtime
