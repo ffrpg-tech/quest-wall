@@ -2,21 +2,20 @@
 	import { Sun, Moon, MessageSquarePlus, Upload, Save, CircleHelp } from '@lucide/svelte';
 	import { resolve } from '$app/paths';
 	import { buttonClass } from '$lib/ui/buttonClass';
-	import FeedbackModal from './FeedbackModal.svelte';
 
 	let {
 		darkMode,
 		onToggleDarkMode,
 		onOpenImport,
-		onOpenBackup
+		onOpenBackup,
+		onOpenFeedback
 	}: {
 		darkMode: boolean;
 		onToggleDarkMode: () => void;
 		onOpenImport: () => void;
 		onOpenBackup: () => void;
+		onOpenFeedback: () => void;
 	} = $props();
-
-	let feedbackModalOpen = $state(false);
 </script>
 
 <header class="flex flex-wrap items-start justify-between gap-4">
@@ -27,10 +26,7 @@
 		</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<button
-			onclick={() => (feedbackModalOpen = true)}
-			class="flex items-center gap-1.5 {buttonClass('default')}"
-		>
+		<button onclick={onOpenFeedback} class="flex items-center gap-1.5 {buttonClass('default')}">
 			<MessageSquarePlus size={16} class="text-sky-600 dark:text-sky-400" />
 			Feedback / report an issue
 		</button>
@@ -63,5 +59,3 @@
 		</button>
 	</div>
 </header>
-
-<FeedbackModal bind:open={feedbackModalOpen} />

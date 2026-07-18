@@ -32,6 +32,7 @@
 	import SiteFooter from '$lib/components/SiteFooter.svelte';
 	import ProgressBackupModal from '$lib/components/ProgressBackupModal.svelte';
 	import ImportModal from '$lib/components/ImportModal.svelte';
+	import FeedbackModal from '$lib/components/FeedbackModal.svelte';
 
 	const webApplicationJsonLd = {
 		'@context': 'https://schema.org',
@@ -234,6 +235,7 @@
 	// ---------- Modals ----------
 
 	let progressModalOpen = $state(false);
+	let feedbackModalOpen = $state(false);
 
 	type ImportTab = 'inventory' | 'bank' | 'completed';
 	let importModalOpen = $state(false);
@@ -311,6 +313,7 @@
 		onToggleDarkMode={() => (darkMode = !darkMode)}
 		onOpenImport={() => openImportModal('inventory')}
 		onOpenBackup={() => (progressModalOpen = true)}
+		onOpenFeedback={() => (feedbackModalOpen = true)}
 	/>
 
 	{#if storageUnavailable}
@@ -373,3 +376,5 @@
 	{onCompletedChanged}
 	onStorageWriteFailed={() => (storageUnavailable = true)}
 />
+
+<FeedbackModal bind:open={feedbackModalOpen} />
