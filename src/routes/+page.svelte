@@ -334,26 +334,28 @@
 		onOpenBackup={() => (progressModalOpen = true)}
 	/>
 
-	<section class="grid gap-6 md:h-[100vh] md:grid-cols-2">
-		<InventoryPanel
-			bind:inventory
-			{inventoryStale}
-			onOpenImport={() => openImportModal('inventory')}
-		/>
-		<QuestlinePicker
-			{questlineOptions}
-			{questlineByName}
-			{completedCountByQuestline}
-			bind:selectedQuestlineNames
-			{questlinesHydrated}
-			{questlinesError}
-			onOpenImportCompleted={() => openImportModal('completed')}
-		/>
-	</section>
+	<main class="space-y-8">
+		<section class="grid gap-6 md:h-[100vh] md:grid-cols-2">
+			<InventoryPanel
+				bind:inventory
+				{inventoryStale}
+				onOpenImport={() => openImportModal('inventory')}
+			/>
+			<QuestlinePicker
+				{questlineOptions}
+				{questlineByName}
+				{completedCountByQuestline}
+				bind:selectedQuestlineNames
+				{questlinesHydrated}
+				{questlinesError}
+				onOpenImportCompleted={() => openImportModal('completed')}
+			/>
+		</section>
 
-	<ShortfallSummary {diffResults} {shortfallSummary} />
+		<ShortfallSummary {diffResults} {shortfallSummary} />
 
-	<ResultsList {diffResults} onToggleCompleted={toggleCompleted} />
+		<ResultsList {diffResults} onToggleCompleted={toggleCompleted} />
+	</main>
 
 	<SiteFooter />
 </div>

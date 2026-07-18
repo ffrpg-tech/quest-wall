@@ -14,6 +14,7 @@
 	import { parseBankPaste, BankParseError } from '$lib/quest/parsing/bank';
 	import { saveInventoryBaseline } from '$lib/quest/storage/persistence';
 	import { getItemsState } from '$lib/quest/storage/itemsStore.svelte';
+	import { trapFocus } from '$lib/ui/trapFocus';
 
 	const itemsState = getItemsState();
 
@@ -113,6 +114,11 @@
 
 		if (!itemsState.itemsHydrated) {
 			parseMessage = 'Item data is still loading — try again in a moment.';
+			return;
+		}
+
+		if (itemsState.itemsError) {
+			parseMessage = 'Item data failed to load — try refreshing the page.';
 			return;
 		}
 
@@ -261,36 +267,50 @@
 	>
 		<div
 			class="relative max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800 dark:text-gray-100"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="import-modal-title"
+			use:trapFocus={() => (open = false)}
 		>
 			{#if successFlashMessage}
 				<ParseSuccessFlash message={successFlashMessage} />
 			{/if}
 
 			<div class="mb-4 flex items-start justify-between">
-				<h2 class="text-lg font-semibold">Import data</h2>
+				<h2 id="import-modal-title" class="text-lg font-semibold">Import data</h2>
 				<button onclick={() => (open = false)} class={buttonClass('icon')} aria-label="Close">
 					✕
 				</button>
 			</div>
 
-			<div class="mb-4 flex gap-1.5 text-sm">
+			<div class="mb-4 flex gap-1.5 text-sm" role="tablist">
 				<button
 					onclick={() => (tab = 'inventory')}
 					class={buttonClass('pill', tab === 'inventory')}
+					role="tab"
+					aria-selected={tab === 'inventory'}
 				>
 					Inventory
 				</button>
-				<button onclick={() => (tab = 'bank')} class={buttonClass('pill', tab === 'bank')}>
+				<button
+					onclick={() => (tab = 'bank')}
+					class={buttonClass('pill', tab === 'bank')}
+					role="tab"
+					aria-selected={tab === 'bank'}
+				>
 					Bank (Silver)
 				</button>
 				<button
 					onclick={() => (tab = 'completed')}
 					class={buttonClass('pill', tab === 'completed')}
+					role="tab"
+					aria-selected={tab === 'completed'}
 				>
 					Completed quests
 				</button>
 			</div>
 
+			<div role="tabpanel">
 			{#if tab === 'inventory'}
 				<details
 					bind:open={showScraperHelp}
@@ -342,6 +362,7 @@
 						bind:value={pasteText}
 						rows="6"
 						placeholder="Paste the full inventory page text here"
+						aria-label="Paste inventory text"
 						class="w-full rounded border border-gray-300 p-2 pr-9 font-mono text-xs dark:border-gray-600 dark:bg-gray-800"
 					></textarea>
 					{#if pasteText}
@@ -411,6 +432,7 @@
 						bind:value={bankPasteText}
 						rows="6"
 						placeholder="Paste the full Bank page text here"
+						aria-label="Paste Bank page text"
 						class="w-full rounded border border-gray-300 p-2 pr-9 font-mono text-xs dark:border-gray-600 dark:bg-gray-800"
 					></textarea>
 					{#if bankPasteText}
@@ -481,6 +503,7 @@
 						bind:value={completedPasteText}
 						rows="6"
 						placeholder="Paste the full Help Needed &gt; Completed page text here"
+						aria-label="Paste completed quests text"
 						class="w-full rounded border border-gray-300 p-2 pr-9 font-mono text-xs dark:border-gray-600 dark:bg-gray-800"
 					></textarea>
 					{#if completedPasteText}
@@ -529,6 +552,7 @@
 					</div>
 				{/if}
 			{/if}
+			</div>
 		</div>
 	</div>
 {/if}

@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Upload, GripVertical } from '@lucide/svelte';
+	import { Upload, GripVertical, ChevronUp, ChevronDown } from '@lucide/svelte';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
 	import type { Questline } from '$lib/quest/types';
@@ -36,6 +36,12 @@
 		return 'ongoing';
 	}
 
+	const statusColorClass: Record<ReturnType<typeof questlineStatus>, string> = {
+		'not-started': 'text-red-600 dark:text-red-400',
+		ongoing: 'text-amber-600 dark:text-amber-400',
+		done: 'text-emerald-600 dark:text-emerald-400'
+	};
+
 	const filteredQuestlines = $derived(
 		questlineOptions.filter((g) => {
 			const matchesStatus =
@@ -44,6 +50,8 @@
 			return matchesQuery(g.name, questlineQuery) && matchesStatus;
 		})
 	);
+
+	const selectedQuestlineNameSet = $derived(new Set(selectedQuestlineNames));
 
 	const selectedQuestlines = $derived(
 		selectedQuestlineNames
@@ -60,6 +68,17 @@
 
 	function removeFromQueue(name: string) {
 		selectedQuestlineNames = selectedQuestlineNames.filter((n) => n !== name);
+	}
+
+	/** Keyboard-operable equivalent to the drag-to-reorder handling below — dragging has no
+	 * keyboard alternative on its own, so this gives keyboard users a way to reorder the queue. */
+	function moveQueueItem(index: number, delta: number) {
+		const to = index + delta;
+		if (to < 0 || to >= selectedQuestlineNames.length) return;
+		const next = selectedQuestlineNames.slice();
+		const [moved] = next.splice(index, 1);
+		next.splice(to, 0, moved);
+		selectedQuestlineNames = next;
 	}
 
 	// ---------- Queue drag-to-reorder ----------
@@ -100,6 +119,7 @@
 		<input
 			bind:value={questlineQuery}
 			placeholder="Search questline name…"
+			aria-label="Search questlines"
 			class="w-full rounded border border-gray-300 p-2 pr-8 text-sm transition-colors hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500"
 		/>
 		{#if questlineQuery}
@@ -119,6 +139,7 @@
 			<button
 				onclick={() => (questlineStatusFilter = value as typeof questlineStatusFilter)}
 				class={buttonClass('pill', questlineStatusFilter === value)}
+				aria-pressed={questlineStatusFilter === value}
 			>
 				{label}
 			</button>
@@ -130,7 +151,8 @@
 			<ul data-testid="questline-list">
 				{#each filteredQuestlines as g (g.name)}
 					{@const doneCount = completedCountByQuestline.get(g.name) ?? 0}
-					{@const queued = selectedQuestlineNames.includes(g.name)}
+					{@const queued = selectedQuestlineNameSet.has(g.name)}
+					{@const statusColor = statusColorClass[questlineStatus(g, doneCount)]}
 					<li>
 						<button
 							onclick={() => toggleQueue(g.name)}
@@ -143,16 +165,7 @@
 							class:dark:hover:bg-emerald-800={queued}
 						>
 							<span>{g.name}</span>
-							<span
-								class="text-xs"
-								class:text-red-600={doneCount === 0}
-								class:dark:text-red-400={doneCount === 0}
-								class:text-amber-600={doneCount > 0 && doneCount < g.questCount}
-								class:dark:text-amber-400={doneCount > 0 && doneCount < g.questCount}
-								class:text-emerald-600={doneCount >= g.questCount}
-								class:dark:text-emerald-400={doneCount >= g.questCount}
-								>{doneCount}/{g.questCount}</span
-							>
+							<span class="text-xs {statusColor}">{doneCount}/{g.questCount}</span>
 						</button>
 					</li>
 				{:else}
@@ -208,14 +221,34 @@
 								/>
 								<span class="truncate">{i + 1}. {g.name}</span>
 							</span>
-							<button
-								onclick={() => removeFromQueue(g.name)}
-								aria-label="Remove from queue"
-								title="Remove from queue"
-								class={buttonClass('icon-danger')}
-							>
-								✕
-							</button>
+							<span class="flex shrink-0 items-center gap-0.5">
+								<button
+									onclick={() => moveQueueItem(i, -1)}
+									disabled={i === 0}
+									aria-label="Move {g.name} up in queue"
+									title="Move up"
+									class={buttonClass('icon')}
+								>
+									<ChevronUp size={14} />
+								</button>
+								<button
+									onclick={() => moveQueueItem(i, 1)}
+									disabled={i === selectedQuestlines.length - 1}
+									aria-label="Move {g.name} down in queue"
+									title="Move down"
+									class={buttonClass('icon')}
+								>
+									<ChevronDown size={14} />
+								</button>
+								<button
+									onclick={() => removeFromQueue(g.name)}
+									aria-label="Remove from queue"
+									title="Remove from queue"
+									class={buttonClass('icon-danger')}
+								>
+									✕
+								</button>
+							</span>
 						</li>
 					{/each}
 				</ul>

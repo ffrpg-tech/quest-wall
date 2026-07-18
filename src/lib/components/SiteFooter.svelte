@@ -80,9 +80,9 @@
 			Changelog
 			{#if hasUnseenChangelog}
 				<span
-					class="inline-block h-1.5 w-1.5 rounded-full bg-emerald-500"
-					aria-label="New changelog entry"
-				></span>
+					class="rounded bg-emerald-100 px-1 py-0.5 text-[10px] font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+					>New</span
+				>
 			{/if}
 		</a>
 		<span class="text-gray-300 dark:text-gray-600">&middot;</span>

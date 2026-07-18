@@ -3,6 +3,7 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { exportProgress, importProgress } from '$lib/quest/storage/persistence';
+	import { trapFocus } from '$lib/ui/trapFocus';
 
 	let {
 		open = $bindable(),
@@ -70,9 +71,13 @@
 	>
 		<div
 			class="w-full max-w-md rounded-lg bg-white p-6 shadow-xl dark:bg-gray-800 dark:text-gray-100"
+			role="dialog"
+			aria-modal="true"
+			aria-labelledby="backup-modal-title"
+			use:trapFocus={() => (open = false)}
 		>
 			<div class="mb-4 flex items-start justify-between">
-				<h2 class="text-lg font-semibold">Progress backup</h2>
+				<h2 id="backup-modal-title" class="text-lg font-semibold">Progress backup</h2>
 				<button onclick={() => (open = false)} class={buttonClass('icon')} aria-label="Close">
 					✕
 				</button>

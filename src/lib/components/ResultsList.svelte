@@ -72,6 +72,7 @@
 												<input
 													type="checkbox"
 													checked={q.done}
+													aria-label="Mark {q.questName} done"
 													onchange={() => onToggleCompleted(diffResult.questlineName, q.questName)}
 													class="cursor-pointer"
 												/>

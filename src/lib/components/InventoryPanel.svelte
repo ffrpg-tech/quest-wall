@@ -78,6 +78,7 @@
 			<input
 				bind:value={inventoryQuery}
 				placeholder="Search current inventory…"
+				aria-label="Search current inventory"
 				class="w-full rounded border border-gray-300 p-1.5 pr-9 text-sm transition-colors hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500"
 			/>
 			{#if inventoryQuery}
@@ -121,6 +122,7 @@
 								type="number"
 								value={entry.qty}
 								min="0"
+								aria-label="Qty for {entry.item}"
 								onchange={(e) => updateItemQty(entry.item, Number(e.currentTarget.value))}
 								class="w-20 rounded border border-gray-300 p-1 text-sm tabular-nums transition-colors hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500"
 							/>
