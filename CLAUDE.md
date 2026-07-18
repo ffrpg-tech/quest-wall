@@ -19,36 +19,37 @@ be monetized.
   not committed to this repo** — the regeneration script and instructions
   live in `api/` (`api/README.md`, `api/fetch-questlines.mjs`), which is
   itself gitignored in full; don't hand-edit the data files, and don't
-  un-gitignore the `api/` directory or its credentials. Both files
-  live under `static/` (not `src/lib/data/`) and are
+  un-gitignore the `api/` directory or its credentials. Both files are
   `fetch()`-ed by the client at runtime (`itemsStore.svelte.ts`,
   `questlinesStore.svelte.ts`) rather than statically imported, so each
   ships as its own cacheable request instead of bloating the page's JS
   bundle — see `_headers` (project root) for the cache headers. Don't switch
   either back to a static import without re-solving that egress problem some
-  other way.
+  other way. `questlinesStore.svelte.ts` also fetches `static/questlines-meta.json`
+  (also generated/gitignored) for `dataLastUpdated`; a missing/malformed meta
+  file fails silently rather than surfacing `questlinesError`, since it's
+  supplementary.
+- A fresh clone won't have those gitignored files. `npm run dev` and
+  `npm run test` run a `predev`/`pretest` `seed-data` step
+  (`scripts/seed-data.mjs`) that copies committed, synthetic
+  `static/questlines.sample.json` / `items.sample.json` into the real
+  filenames **only if they don't already exist** — never overwrites real
+  fetched data. See `CONTRIBUTING.md`.
 - Questline grouping/ordering and quest identity come from an external
-  source's own structure now — there is no more Roman-numeral/`Part NN`/
-  letter-suffix title parsing (`splitQuestName`/`sanitizeQuestName` are gone
-  along with the old CSV pipeline). A quest belonging to multiple questlines
-  gets a full `Quest` object denormalized into each questline's `quests[]`,
-  same as before. Titles that wrap onto a second line upstream can carry a
-  literal `<br/>`, which must be sanitized to a space wherever titles are
-  produced — don't reintroduce the raw `<br/>` into `Quest.name`.
-- **Rewards are gone.** Quests no longer carry a rewards concept in the
-  current data source — `Quest.rewards` has been removed from the type
-  entirely, and `diff.ts`'s old reward-crediting step is gone with it. Don't
-  reintroduce a `rewards` field without confirming the upstream source
-  actually has an equivalent.
-- **Silver is now tracked**: a per-quest silver requirement is folded into a
-  synthetic `{item: "Silver", qty: requiredSilver}` requirement alongside
-  real item requirements, so it participates in shortfall tracking like any
-  other item. (Previously silver was absent from the CSV entirely — this is
-  a real behavior change, not a bug if you see "Silver" show up as a
-  requirement now.)
-- `Quest.label` is gone (it was purely derived from the old title parsing).
-  The UI shows `seq` (the upstream ordering value) instead of a parsed
-  "II"/"Part 2"-style badge.
+  source's own structure — no title-parsing step derives them. A quest
+  belonging to multiple questlines gets a full `Quest` object denormalized
+  into each questline's `quests[]`. Titles that wrap onto a second line
+  upstream can carry a literal `<br/>`, which must be sanitized to a space
+  wherever titles are produced — don't reintroduce the raw `<br/>` into
+  `Quest.name`.
+- Quests carry no rewards concept — don't add a `rewards` field without
+  confirming the upstream source actually has an equivalent.
+- A per-quest silver requirement is folded into a synthetic
+  `{item: "Silver", qty: requiredSilver}` requirement alongside real item
+  requirements, so it participates in shortfall tracking like any other
+  item.
+- There's no `Quest.label` — the UI shows `seq` (the upstream ordering
+  value) instead of a parsed "II"/"Part 2"-style badge.
 - Some quests aren't part of any named chain at all (one-off requests) —
   these are grouped under their own title as a singleton questline rather
   than dropped, so every quest that exists ends up somewhere in

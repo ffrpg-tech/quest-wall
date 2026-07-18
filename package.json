@@ -4,6 +4,9 @@
 	"version": "0.1.4",
 	"type": "module",
 	"scripts": {
+		"seed-data": "node scripts/seed-data.mjs",
+		"predev": "npm run seed-data",
+		"pretest": "npm run seed-data",
 		"dev": "vite dev",
 		"build": "vite build",
 		"preview": "vite preview",
