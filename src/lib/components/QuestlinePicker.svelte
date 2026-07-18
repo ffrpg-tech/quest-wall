@@ -2,7 +2,7 @@
 	import { Upload, GripVertical, ChevronUp, ChevronDown, X } from '@lucide/svelte';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
-	import { retryQuestlines } from '$lib/quest/storage/questlinesStore.svelte';
+	import { retryQuestlines, getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
 	import { statusTextColorClass, type SemanticStatus } from '$lib/ui/statusColor';
 	import type { Questline } from '$lib/quest/types';
 
@@ -27,6 +27,17 @@
 	let questlineQuery = $state('');
 	type QuestlineStatusFilter = 'all' | 'not-started' | 'ongoing' | 'done';
 	let questlineStatusFilter = $state<QuestlineStatusFilter>('all');
+
+	const questlinesState = getQuestlinesState();
+	const dataLastUpdatedLabel = $derived(
+		questlinesState.dataLastUpdated
+			? new Date(questlinesState.dataLastUpdated).toLocaleDateString(undefined, {
+					year: 'numeric',
+					month: 'short',
+					day: 'numeric'
+				})
+			: null
+	);
 
 	function clearQuestlineSearch() {
 		questlineQuery = '';
@@ -114,7 +125,14 @@
 	class="flex min-h-0 flex-col space-y-3 rounded-lg border border-gray-200 p-4 dark:border-gray-700"
 >
 	<div class="flex items-center justify-between">
-		<h2 class="font-semibold">2. Questline</h2>
+		<h2 class="font-semibold">
+			2. Questline
+			{#if dataLastUpdatedLabel}
+				<span class="text-xs font-normal text-gray-500 dark:text-gray-400"
+					>&middot; Data updated {dataLastUpdatedLabel}</span
+				>
+			{/if}
+		</h2>
 		<button
 			onclick={onOpenImportCompleted}
 			title="Import completed quests"
