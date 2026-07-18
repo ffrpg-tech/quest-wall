@@ -63,7 +63,12 @@ export function getItemsState() {
 	};
 }
 
+/** Silver is a synthetic requirement (see diff.ts) with no entry in the upstream-sourced
+ * items.json, so its image is hardcoded here rather than relying on the fetched data. */
+const SILVER_IMAGE = '/img/items/silver.png';
+
 export function getItemImagePath(name: string): string | undefined {
+	if (name === 'Silver') return `${FARMRPG_ORIGIN}${SILVER_IMAGE}`;
 	const image = imageByName.get(name);
 	return image ? `${FARMRPG_ORIGIN}${image}` : undefined;
 }
