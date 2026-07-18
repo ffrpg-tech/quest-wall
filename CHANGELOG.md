@@ -9,8 +9,12 @@ the page parses this file directly, so an entry added here is what users see.
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-18
+
 ### Added
 
+- A brief confirmation now appears right after a paste is successfully parsed.
+- Item icons now appear next to item names in the inventory list, results, and shortfall summary.
 - A visible FAQ section on the About page, and a "?" header button linking straight to it.
 - A warning banner if your browser blocks saving (private browsing, storage full), so you know to back up your progress before closing the tab.
 - "Retry" buttons when quest or item data fails to load, instead of needing a full page reload.
@@ -18,24 +22,14 @@ the page parses this file directly, so an entry added here is what users see.
 
 ### Changed
 
-- Clearing your inventory now asks for confirmation first, matching the existing confirmation on progress-import overwrite.
-- Parse errors and successes are now visually distinct (red vs. neutral text) instead of looking identical.
-- The "Import data" button now stands out as the primary action in the header.
-- The startup loading screen now also tracks quest and item data loading, not just saved preferences.
-
-## [0.1.4] - 2026-07-17
-
-### Added
-
-- A brief confirmation now appears right after a paste is successfully parsed.
-- Item icons now appear next to item names in the inventory list, results, and shortfall summary.
-
-### Changed
-
 - Pasted inventory items that aren't needed by any quest are no longer imported, keeping the inventory list focused on what's actually relevant.
 - The inventory list's "(MAX)" tag is now colored red so maxed-out items stand out at a glance.
 - Every questline now shows its completed count out of its total (e.g. "0/18"), colored red at 0, orange while in progress, and green once finished, instead of only showing a count once you'd started.
 - Result rows now use consistent, plain-English statuses: "Done", "Ready", "Short", and "Wall Point" (previously a mix of lowercase, all-caps, and abbreviations like "OK").
+- Clearing your inventory now asks for confirmation first, matching the existing confirmation on progress-import overwrite.
+- Parse errors and successes are now visually distinct (red vs. neutral text) instead of looking identical.
+- The "Import data" button now stands out as the primary action in the header.
+- The startup loading screen now also tracks quest and item data loading, not just saved preferences.
 
 ### Fixed
 

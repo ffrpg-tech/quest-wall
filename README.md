@@ -8,7 +8,7 @@ cross-referencing requirement lists quest by quest.
 This is a fan project, not affiliated with FarmRPG. It will never be
 monetized. All credit for FarmRPG itself goes to its developers.
 
-> Notice: This project is created with the assistance of Claude Code.
+> Notice: This project is created with the assistance of [Claude Code](https://claude.com/claude-code).
 
 ## How it works
 
@@ -35,11 +35,38 @@ monetized. All credit for FarmRPG itself goes to its developers.
    questline queue are all saved to `localStorage` and progress can be
    exported/imported as JSON.
 
-Quest and item data (`static/questlines.json`, `src/lib/data/items.json`) is
-generated and **not committed to this repo**. `questlines.json` lives under
-`static/` (not `src/lib/data/`) and is fetched by the client at runtime
-rather than bundled into the page's JS, so it ships as its own cacheable
-request — see `_headers` for the cache headers.
+## Developing
+
+Install dependencies, then start the dev server:
+
+```sh
+npm install
+npm run dev
+
+# or start the server and open the app in a new browser tab
+npm run dev -- --open
+```
+
+## Testing & checks
+
+```sh
+npm run test:unit    # vitest (diff.spec.ts, persistence.spec.ts, types.spec.ts, etc.)
+npm run test:e2e      # playwright install && playwright test
+npm test              # test:unit --run, then test:e2e
+npm run check         # svelte-check / TypeScript
+npm run lint          # prettier + eslint
+```
+
+## Building & deploying
+
+```sh
+npm run build
+npm run deploy   # vite build && wrangler pages deploy .svelte-kit/cloudflare
+```
+
+Preview the production build with `npm run preview`. Deploys to Cloudflare
+Pages manually via `wrangler` (see `api/README.md`) rather than Cloudflare's
+git-triggered auto-build, since the generated data files aren't in git.
 
 ## Project structure
 
@@ -65,8 +92,7 @@ static/
   questlines.json      Generated, not committed — quests grouped into questlines, fetched by the
                        client at runtime
   questlines-meta.json Generated, not committed — metadata about the last data regeneration
-src/lib/data/
-  items.json            Generated, not committed — all known item names (for autosuggest/validation)
+  items.json           Generated, not committed — all known item names (for autosuggest/validation)
 src/lib/
   seo.ts                Site metadata constants + canonicalUrl() helper, used for meta tags/JSON-LD
   config.ts             Small cross-component constants (feedback form URL, source repo URL)
@@ -97,24 +123,15 @@ api/
   fetch-questlines.mjs  Gitignored data-regeneration script — not committed, see api/README.md
 ```
 
-## Developing
-
-Install dependencies, then start the dev server:
-
-```sh
-npm install
-npm run dev
-
-# or start the server and open the app in a new browser tab
-npm run dev -- --open
-```
-
 ## Quest data
 
-`static/questlines.json` and `src/lib/data/items.json` are generated and not
-committed to this repo — see `api/README.md` (gitignored, maintainer-only)
-for how to regenerate them. Note: "Silver" (in-game currency) does show up
-as an item requirement on some quests — that's expected, not a data bug.
+`static/questlines.json` and `static/items.json` are generated and **not
+committed to this repo**, and are fetched by the client at runtime rather
+than bundled into the page's JS, so each ships as its own cacheable request
+— see `_headers` for the cache headers. See `api/README.md` (gitignored,
+maintainer-only) for how to regenerate them. Note: "Silver" (in-game
+currency) does show up as an item requirement on some quests — that's
+expected, not a data bug.
 
 ## Contributing
 
@@ -126,24 +143,3 @@ pull request — use the in-app "Feedback / report an issue" button instead.
 UI strings are managed via [Paraglide](https://inlang.com/m/gerre34r/library-inlang-paraglideJs)
 (`messages/en.json`, `messages/es.json`); `src/lib/paraglide/` is generated
 from those and shouldn't be hand-edited.
-
-## Testing & checks
-
-```sh
-npm run test:unit    # vitest (diff.spec.ts, persistence.spec.ts, types.spec.ts, etc.)
-npm run test:e2e      # playwright install && playwright test
-npm test              # test:unit --run, then test:e2e
-npm run check         # svelte-check / TypeScript
-npm run lint          # prettier + eslint
-```
-
-## Building & deploying
-
-```sh
-npm run build
-npm run deploy   # vite build && wrangler pages deploy .svelte-kit/cloudflare
-```
-
-Preview the production build with `npm run preview`. Deploys to Cloudflare
-Pages manually via `wrangler` (see `api/README.md`) rather than Cloudflare's
-git-triggered auto-build, since the generated data files aren't in git.
