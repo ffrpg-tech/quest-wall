@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { SvelteSet } from 'svelte/reactivity';
+	import { X } from '@lucide/svelte';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { FEEDBACK_FORM_URL } from '$lib/config';
 	import ParseSuccessFlash from './ParseSuccessFlash.svelte';
@@ -13,7 +14,7 @@
 	import { parseCompletedQuestNames, CompletedQuestParseError } from '$lib/quest/parsing/completed';
 	import { parseBankPaste, BankParseError } from '$lib/quest/parsing/bank';
 	import { saveInventoryBaseline } from '$lib/quest/storage/persistence';
-	import { getItemsState } from '$lib/quest/storage/itemsStore.svelte';
+	import { getItemsState, retryItems } from '$lib/quest/storage/itemsStore.svelte';
 	import { trapFocus } from '$lib/ui/trapFocus';
 
 	const itemsState = getItemsState();
@@ -28,7 +29,8 @@
 		completed,
 		inventoryBaseline,
 		staleKeys,
-		onCompletedChanged
+		onCompletedChanged,
+		onStorageWriteFailed
 	}: {
 		open: boolean;
 		tab: ImportTab;
@@ -38,12 +40,24 @@
 		inventoryBaseline: SvelteSet<string>;
 		staleKeys: SvelteSet<string>;
 		onCompletedChanged: () => void;
+		onStorageWriteFailed: () => void;
 	} = $props();
 
 	/** Unwraps a caught paste-parsing error into a user-facing message: the parser's own message if it's the expected error class, otherwise a generic fallback — the one rule shared by all three paste-parsing handlers below. */
 	// eslint-disable-next-line @typescript-eslint/no-explicit-any
 	function parseErrorMessage(err: unknown, ErrorClass: new (...args: any[]) => Error): string {
 		return err instanceof ErrorClass ? err.message : 'Unexpected error parsing paste.';
+	}
+
+	/** A parse status message paired with whether it's an error, so the UI can style
+	 * failures distinctly from successes instead of both rendering as identical neutral
+	 * gray text. */
+	type StatusMessage = { text: string; ok: boolean };
+
+	function statusMessageClass(ok: boolean): string {
+		return ok
+			? 'text-xs text-gray-500 dark:text-gray-400'
+			: 'text-xs text-red-600 dark:text-red-400';
 	}
 
 	let showScraperHelp = $state(false);
@@ -99,26 +113,26 @@
 	// ---------- Inventory tab ----------
 
 	let pasteText = $state('');
-	let parseMessage = $state('');
+	let parseMessage = $state<StatusMessage | null>(null);
 
 	function clearPasteText() {
 		pasteText = '';
-		parseMessage = '';
+		parseMessage = null;
 	}
 
 	function handleParsePaste() {
 		if (!pasteText.trim()) {
-			parseMessage = 'Nothing to parse.';
+			parseMessage = { text: 'Nothing to parse.', ok: false };
 			return;
 		}
 
 		if (!itemsState.itemsHydrated) {
-			parseMessage = 'Item data is still loading — try again in a moment.';
+			parseMessage = { text: 'Item data is still loading — try again in a moment.', ok: false };
 			return;
 		}
 
 		if (itemsState.itemsError) {
-			parseMessage = 'Item data failed to load — try refreshing the page.';
+			parseMessage = { text: 'Item data failed to load — try refreshing the page.', ok: false };
 			return;
 		}
 
@@ -126,37 +140,38 @@
 		try {
 			parsed = toInventoryEntries(parseInventoryPaste(pasteText), itemsState.itemNames);
 		} catch (err) {
-			parseMessage = parseErrorMessage(err, InventoryParseError);
+			parseMessage = { text: parseErrorMessage(err, InventoryParseError), ok: false };
 			return;
 		}
 
 		// Paste overwrites matching item names in the current inventory.
 		inventory = mergeInventory(inventory, parsed);
-		parseMessage = `Parsed ${parsed.size} item${parsed.size === 1 ? '' : 's'}.`;
-		flashSuccess(parseMessage);
+		const text = `Parsed ${parsed.size} item${parsed.size === 1 ? '' : 's'}.`;
+		parseMessage = { text, ok: true };
+		flashSuccess(text);
 
 		// This paste is a resync to ground truth: whatever's completed right
 		// now is now reflected in the pasted numbers, so reset the baseline.
 		inventoryBaseline.clear();
 		for (const key of completed) inventoryBaseline.add(key);
 		staleKeys.clear();
-		saveInventoryBaseline(completed);
+		if (!saveInventoryBaseline(completed)) onStorageWriteFailed();
 	}
 
 	// ---------- Bank tab ----------
 
 	let bankPasteText = $state('');
-	let bankParseMessage = $state('');
+	let bankParseMessage = $state<StatusMessage | null>(null);
 	let includeBankBalance = $state(false);
 
 	function clearBankPasteText() {
 		bankPasteText = '';
-		bankParseMessage = '';
+		bankParseMessage = null;
 	}
 
 	function handleParseBankPaste() {
 		if (!bankPasteText.trim()) {
-			bankParseMessage = 'Nothing to parse.';
+			bankParseMessage = { text: 'Nothing to parse.', ok: false };
 			return;
 		}
 
@@ -164,7 +179,7 @@
 		try {
 			parsed = parseBankPaste(bankPasteText);
 		} catch (err) {
-			bankParseMessage = parseErrorMessage(err, BankParseError);
+			bankParseMessage = { text: parseErrorMessage(err, BankParseError), ok: false };
 			return;
 		}
 
@@ -173,10 +188,11 @@
 			inventory,
 			new Map([['Silver', { item: 'Silver', qty: silver, maxed: false }]])
 		);
-		bankParseMessage = includeBankBalance
+		const text = includeBankBalance
 			? `Set Silver to ${silver.toLocaleString()} (wallet + bank).`
 			: `Set Silver to ${silver.toLocaleString()} (wallet only).`;
-		flashSuccess(bankParseMessage);
+		bankParseMessage = { text, ok: true };
+		flashSuccess(text);
 	}
 
 	// ---------- Completed quests tab ----------
@@ -198,7 +214,7 @@
 	});
 
 	let completedPasteText = $state('');
-	let completedParseMessage = $state('');
+	let completedParseMessage = $state<StatusMessage | null>(null);
 	// Quest names from the paste that didn't match anything in questlines.json —
 	// surfaced as a copyable list so the player can report them via feedback
 	// instead of the mismatch just silently vanishing into an unmatchedNames count.
@@ -206,13 +222,13 @@
 
 	function clearCompletedPasteText() {
 		completedPasteText = '';
-		completedParseMessage = '';
+		completedParseMessage = null;
 		unmatchedQuestNames = [];
 	}
 
 	function handleParseCompleted() {
 		if (!completedPasteText.trim()) {
-			completedParseMessage = 'Nothing to parse.';
+			completedParseMessage = { text: 'Nothing to parse.', ok: false };
 			unmatchedQuestNames = [];
 			return;
 		}
@@ -221,7 +237,7 @@
 		try {
 			names = parseCompletedQuestNames(completedPasteText);
 		} catch (err) {
-			completedParseMessage = parseErrorMessage(err, CompletedQuestParseError);
+			completedParseMessage = { text: parseErrorMessage(err, CompletedQuestParseError), ok: false };
 			unmatchedQuestNames = [];
 			return;
 		}
@@ -243,11 +259,12 @@
 		}
 		onCompletedChanged();
 		unmatchedQuestNames = [...new Set(unmatched)];
-		completedParseMessage =
+		const text =
 			unmatched.length > 0
 				? `Marked ${matchedNames} quest name${matchedNames === 1 ? '' : 's'} done (${unmatched.length} name${unmatched.length === 1 ? '' : 's'} didn't match a known quest).`
 				: `Marked ${matchedNames} quest${matchedNames === 1 ? '' : 's'} done.`;
-		flashSuccess(completedParseMessage);
+		completedParseMessage = { text, ok: true };
+		flashSuccess(text);
 	}
 
 	let copyUnmatchedMessage = $state('');
@@ -279,7 +296,7 @@
 			<div class="mb-4 flex items-start justify-between">
 				<h2 id="import-modal-title" class="text-lg font-semibold">Import data</h2>
 				<button onclick={() => (open = false)} class={buttonClass('icon')} aria-label="Close">
-					✕
+					<X size={16} />
 				</button>
 			</div>
 
@@ -372,16 +389,22 @@
 							title="Clear pasted text"
 							class="absolute top-2 right-3 {buttonClass('icon-danger')}"
 						>
-							✕
+							<X size={16} />
 						</button>
 					{/if}
 				</div>
 				<div class="mt-2 flex items-center gap-2">
 					<button onclick={handleParsePaste} class={buttonClass('primary')}>Parse paste</button>
 					{#if parseMessage}
-						<span class="text-xs text-gray-500 dark:text-gray-400">{parseMessage}</span>
+						<span class={statusMessageClass(parseMessage.ok)}>{parseMessage.text}</span>
+						{#if !parseMessage.ok && itemsState.itemsError}
+							<button onclick={() => retryItems()} class={buttonClass('link')}>Retry</button>
+						{/if}
 					{/if}
 				</div>
+				<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+					This overwrites quantities for any item name already in your inventory below.
+				</p>
 			{:else if tab === 'bank'}
 				<details
 					bind:open={showScraperHelp}
@@ -442,14 +465,14 @@
 							title="Clear pasted text"
 							class="absolute top-2 right-3 {buttonClass('icon-danger')}"
 						>
-							✕
+							<X size={16} />
 						</button>
 					{/if}
 				</div>
 				<div class="mt-2 flex items-center gap-2">
 					<button onclick={handleParseBankPaste} class={buttonClass('primary')}>Parse paste</button>
 					{#if bankParseMessage}
-						<span class="text-xs text-gray-500 dark:text-gray-400">{bankParseMessage}</span>
+						<span class={statusMessageClass(bankParseMessage.ok)}>{bankParseMessage.text}</span>
 					{/if}
 				</div>
 			{:else if tab === 'completed'}
@@ -513,16 +536,19 @@
 							title="Clear pasted text"
 							class="absolute top-2 right-3 {buttonClass('icon-danger')}"
 						>
-							✕
+							<X size={16} />
 						</button>
 					{/if}
 				</div>
 				<div class="mt-2 flex items-center gap-2">
 					<button onclick={handleParseCompleted} class={buttonClass('primary')}>Parse paste</button>
 					{#if completedParseMessage}
-						<span class="text-xs text-gray-500 dark:text-gray-400">{completedParseMessage}</span>
+						<span class={statusMessageClass(completedParseMessage.ok)}>{completedParseMessage.text}</span>
 					{/if}
 				</div>
+				<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+					A quest name matching more than one questline gets marked done in all of them.
+				</p>
 				{#if unmatchedQuestNames.length > 0}
 					<div
 						class="mt-3 rounded border border-amber-300 bg-amber-50 p-3 dark:border-amber-700 dark:bg-amber-950"

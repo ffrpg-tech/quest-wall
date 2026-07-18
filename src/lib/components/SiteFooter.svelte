@@ -60,7 +60,7 @@
 		>.
 	</p>
 	<p class="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
-		<a href={resolve('/about')} class="text-emerald-600 hover:underline dark:text-emerald-400"
+		<a href="{resolve('/about')}#why" class="text-emerald-600 hover:underline dark:text-emerald-400"
 			>Why did I create this?</a
 		>
 		<span class="text-gray-300 dark:text-gray-600">&middot;</span>

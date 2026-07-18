@@ -1,10 +1,21 @@
 <script lang="ts">
 	import { resolve } from '$app/paths';
 	import { canonicalUrl, SITE_NAME } from '$lib/seo';
+	import { faqItems } from '$lib/faq';
 
-	const title = `Why I made this — ${SITE_NAME}`;
+	const title = `About — ${SITE_NAME}`;
 	const description =
-		'Why the Farm RPG Quest Wall Calculator exists: the maintenance burden of shared spreadsheets, and the gap it fills for planning Quest Wall chains.';
+		'Why the Farm RPG Quest Wall Calculator exists, and frequently asked questions about how it works, whether it saves progress, and how to get started.';
+
+	const faqJsonLd = {
+		'@context': 'https://schema.org',
+		'@type': 'FAQPage',
+		mainEntity: faqItems.map((f) => ({
+			'@type': 'Question',
+			name: f.question,
+			acceptedAnswer: { '@type': 'Answer', text: f.answer }
+		}))
+	};
 </script>
 
 <svelte:head>
@@ -19,18 +30,26 @@
 	<meta name="twitter:card" content="summary" />
 	<meta name="twitter:title" content={title} />
 	<meta name="twitter:description" content={description} />
+
+	<!-- eslint-disable svelte/no-at-html-tags -- JSON-LD script tag: content is
+	     JSON.stringify of a static, developer-authored object above (faqItems
+	     from $lib/faq), not user input, so there's no injection surface.
+	     {@html} is the only way to emit a literal <script> tag from svelte:head. -->
+	{@html `<script type="application/ld+json">${JSON.stringify(faqJsonLd)}</` + 'script>'}
+	<!-- eslint-enable svelte/no-at-html-tags -->
 </svelte:head>
 
-<div class="mx-auto max-w-3xl space-y-6 p-6 dark:text-gray-100">
+<div class="mx-auto max-w-3xl space-y-10 p-6 dark:text-gray-100">
 	<a href={resolve('/')} class="text-sm text-emerald-600 hover:underline dark:text-emerald-400"
 		>&larr; Back to the calculator</a
 	>
 
-	<header>
-		<h1 class="text-2xl font-bold">Why did I create this?</h1>
-	</header>
+	<section id="why" class="scroll-mt-6 space-y-4">
+		<header>
+			<h1 class="text-2xl font-bold">Why did I create this?</h1>
+		</header>
 
-	<section class="space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
+		<div class="space-y-4 text-sm leading-relaxed text-gray-700 dark:text-gray-300">
 		<p>
 			Farm RPG has no shortage of quest data — <a
 				href="https://buddy.farm"
@@ -64,5 +83,23 @@
 			> for who made that possible.
 		</p>
 		<p>This project is built with <strong>AI assistance</strong>. Testing and debugging were <span class="font-medium text-emerald-600 dark:text-emerald-400">validated by humans</span>.</p>
+		</div>
+	</section>
+
+	<section id="faq" class="scroll-mt-6 space-y-4">
+		<header>
+			<h2 class="text-xl font-bold">Frequently asked questions</h2>
+		</header>
+
+		<div class="divide-y divide-gray-100 dark:divide-gray-700">
+			{#each faqItems as item (item.question)}
+				<details class="group py-2">
+					<summary class="cursor-pointer list-none text-sm font-medium">
+						{item.question}
+					</summary>
+					<p class="mt-1.5 text-sm leading-relaxed text-gray-600 dark:text-gray-300">{item.answer}</p>
+				</details>
+			{/each}
+		</div>
 	</section>
 </div>

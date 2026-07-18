@@ -1,10 +1,11 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { TriangleAlert } from '@lucide/svelte';
 	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { canonicalUrl, DEFAULT_DESCRIPTION, SITE_NAME } from '$lib/seo';
 	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
 	import { loadQuestlines, getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
-	import { loadItems } from '$lib/quest/storage/itemsStore.svelte';
+	import { loadItems, getItemsState } from '$lib/quest/storage/itemsStore.svelte';
 	import { inventoryToMap } from '$lib/quest/parsing/inventory';
 	import {
 		aggregateQueueShortfalls,
@@ -32,37 +33,6 @@
 	import ProgressBackupModal from '$lib/components/ProgressBackupModal.svelte';
 	import ImportModal from '$lib/components/ImportModal.svelte';
 
-	// Answer-engine / GEO framing: short, self-contained Q&A pairs emitted as
-	// FAQPage JSON-LD (not rendered in the visible UI) so an AI assistant
-	// summarizing or citing this page has a direct, quotable answer instead of
-	// having to infer one from the calculator UI.
-	const faqItems = [
-		{
-			question: 'What is the Farm RPG Quest Wall Calculator?',
-			answer:
-				"A free tool for the FarmRPG game: paste your in-game inventory, pick a Quest Wall questline, and it tells you the first quest in that chain you can't complete with your current materials — before you start turning items in."
-		},
-		{
-			question: 'Is this affiliated with FarmRPG?',
-			answer:
-				"No. This is an unofficial fan project, reviewed and approved by FarmRPG staff before it went live, but it isn't made or run by the FarmRPG developers. All credit for the game goes to them."
-		},
-		{
-			question: 'Does it cost anything?',
-			answer: 'No. This tool is free and will never be monetized.'
-		},
-		{
-			question: 'How do I get my inventory into the calculator?',
-			answer:
-				'Use the "Import data" button, which walks through selecting and copying your inventory (or completed quest list) directly from the FarmRPG page, then pasting it in here to parse.'
-		},
-		{
-			question: 'Does it save my progress?',
-			answer:
-				'Yes — your inventory, questline queue, and completed quests are saved to your browser\'s local storage automatically, and you can export/import a backup file from the "Progress backup" button.'
-		}
-	];
-
 	const webApplicationJsonLd = {
 		'@context': 'https://schema.org',
 		'@type': 'WebApplication',
@@ -75,16 +45,6 @@
 		author: { '@type': 'Person', name: 'kodyy' }
 	};
 
-	const faqJsonLd = {
-		'@context': 'https://schema.org',
-		'@type': 'FAQPage',
-		mainEntity: faqItems.map((f) => ({
-			'@type': 'Question',
-			name: f.question,
-			acceptedAnswer: { '@type': 'Answer', text: f.answer }
-		}))
-	};
-
 	// Fetched as a static asset (rather than imported) so it ships as its own
 	// cacheable request instead of being bundled into this page's JS chunk —
 	// see _headers (project root) for the cache headers and api/fetch-questlines.mjs
@@ -94,6 +54,9 @@
 	const questlines = $derived(questlinesState.questlines);
 	const questlinesHydrated = $derived(questlinesState.questlinesHydrated);
 	const questlinesError = $derived(questlinesState.questlinesError);
+
+	const itemsState = getItemsState();
+	const itemsHydrated = $derived(itemsState.itemsHydrated);
 
 	onMount(() => {
 		void loadQuestlines();
@@ -108,6 +71,17 @@
 
 	const questlineByName = $derived(new Map(questlineOptions.map((g) => [g.name, g])));
 
+	// ---------- Storage-write failure (quota full / private browsing) ----------
+
+	// Sticky once true: once a save has failed there's no point re-checking on
+	// every subsequent write, and flipping it back to false on a later
+	// successful write would hide the fact that an earlier edit was lost.
+	let storageUnavailable = $state(false);
+
+	function trackSave(ok: boolean) {
+		if (!ok) storageUnavailable = true;
+	}
+
 	// ---------- Inventory ----------
 
 	let inventory = $state<InventoryEntry[]>([]);
@@ -119,7 +93,7 @@
 	});
 
 	$effect(() => {
-		if (inventoryHydrated) saveInventory(inventory);
+		if (inventoryHydrated) trackSave(saveInventory(inventory));
 	});
 
 	const inventoryMap = $derived(inventoryToMap(inventory));
@@ -153,7 +127,7 @@
 	});
 
 	$effect(() => {
-		if (queueHydrated) saveQueue(selectedQuestlineNames);
+		if (queueHydrated) trackSave(saveQueue(selectedQuestlineNames));
 	});
 
 	const selectedQuestlines = $derived(
@@ -225,7 +199,7 @@
 	const inventoryStale = $derived(staleKeys.size > 0);
 
 	$effect(() => {
-		if (hydrated) saveCompleted(completed);
+		if (hydrated) trackSave(saveCompleted(completed));
 	});
 
 	function toggleCompleted(questlineName: string, questName: string) {
@@ -282,19 +256,25 @@
 
 	$effect(() => {
 		document.documentElement.classList.toggle('dark', darkMode);
-		if (darkModeHydrated) saveDarkMode(darkMode);
+		if (darkModeHydrated) trackSave(saveDarkMode(darkMode));
 	});
 
 	// ---------- Startup loading screen ----------
 
 	/** Each localStorage read runs in its own onMount and is synchronous, but
 	 * naming them individually here still lets the overlay show which piece
-	 * is outstanding rather than a single opaque spinner. */
+	 * is outstanding rather than a single opaque spinner. Questlines/Items are
+	 * the two actual network fetches — `questlinesHydrated`/`itemsHydrated` go
+	 * true on failure too (see the stores' `finally` blocks), so a fetch error
+	 * doesn't leave the overlay stuck; it just means that stage still needed
+	 * to be accounted for before the rest of the UI claims to be ready. */
 	const loadingStages = $derived([
 		{ label: 'Preferences', done: darkModeHydrated },
 		{ label: 'Inventory', done: inventoryHydrated },
 		{ label: 'Completed quests', done: hydrated },
-		{ label: 'Questline queue', done: queueHydrated }
+		{ label: 'Questline queue', done: queueHydrated },
+		{ label: 'Questlines', done: questlinesHydrated },
+		{ label: 'Items', done: itemsHydrated }
 	]);
 	const appReady = $derived(loadingStages.every((s) => s.done));
 </script>
@@ -318,7 +298,6 @@
 	     input, so there's no injection surface. {@html} is the only way to
 	     emit a literal <script> tag from svelte:head. -->
 	{@html `<script type="application/ld+json">${JSON.stringify(webApplicationJsonLd)}</` + 'script>'}
-	{@html `<script type="application/ld+json">${JSON.stringify(faqJsonLd)}</` + 'script>'}
 	<!-- eslint-enable svelte/no-at-html-tags -->
 </svelte:head>
 
@@ -333,6 +312,20 @@
 		onOpenImport={() => openImportModal('inventory')}
 		onOpenBackup={() => (progressModalOpen = true)}
 	/>
+
+	{#if storageUnavailable}
+		<div
+			class="flex items-start gap-2 rounded border border-amber-300 bg-amber-50 p-2 text-xs text-amber-800 dark:border-amber-700 dark:bg-amber-950 dark:text-amber-300"
+			role="alert"
+		>
+			<TriangleAlert size={14} class="mt-0.5 shrink-0" />
+			<span
+				>Your browser blocked saving to local storage (private browsing or storage is full) —
+				changes made this session won't be there when you reload. Use "Progress backup" to export
+				before you close this tab.</span
+			>
+		</div>
+	{/if}
 
 	<main class="space-y-8">
 		<section class="grid gap-6 md:h-[100vh] md:grid-cols-2">
@@ -377,4 +370,5 @@
 	{inventoryBaseline}
 	{staleKeys}
 	{onCompletedChanged}
+	onStorageWriteFailed={() => (storageUnavailable = true)}
 />
