@@ -40,6 +40,15 @@ export function loadItems(): Promise<void> {
 	return loadPromise;
 }
 
+/** Clears the cached fetch and re-runs it — for a "retry" action after a failed fetch,
+ * so the user isn't forced into a full page reload to recover from a transient network
+ * blip. */
+export function retryItems(): Promise<void> {
+	itemsError = false;
+	loadPromise = null;
+	return loadItems();
+}
+
 export function getItemsState() {
 	return {
 		get itemNames() {

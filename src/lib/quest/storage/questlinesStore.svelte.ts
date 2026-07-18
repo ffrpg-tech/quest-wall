@@ -58,6 +58,15 @@ export function loadQuestlines(): Promise<void> {
 	return loadPromise;
 }
 
+/** Clears the cached fetch and re-runs it — for a "retry" action after a failed fetch,
+ * so the user isn't forced into a full page reload to recover from a transient network
+ * blip. */
+export function retryQuestlines(): Promise<void> {
+	questlinesError = false;
+	loadPromise = null;
+	return loadQuestlines();
+}
+
 export function getQuestlinesState() {
 	return {
 		get questlines() {
