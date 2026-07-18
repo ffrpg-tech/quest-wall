@@ -45,12 +45,12 @@
 				endorsed by, or sponsored by Magic and Wires, LLC.
 			</p>
 			<p class="mt-1">
-				<strong>Special thanks</strong> to the folks on the FarmRPG Discord who helped make this possible,
-				tested the calculator, and gave feedback:
+				<strong>Special thanks</strong> to these folks for providing me insights and contributions to create this project:
 			</p>
 			<ol class="mt-1 list-decimal space-y-1 pl-5">
 				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Erisere</span> — shared their stored quest data via CSV to initialize the data and helped test the calculator.</li>
 				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Natsulus</span> — offered early insights on client-side inventory collection that helped shape the direction of the inventory parser.</li>
+				<li>FarmRPG Staff <span class="font-medium text-emerald-600 dark:text-emerald-400">coderanger</span> — provided technical access and guidance for the data pipeline and several clarifications.</li>
 			</ol>
 		</div>
 
@@ -73,7 +73,6 @@
 						rel="noopener noreferrer"
 						class="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
 						>A Towering Investment Checklist & Strategy</a>
-					by <span class="font-medium text-emerald-600 dark:text-emerald-400">Badymaru</span>
 					— where I originated my idea.
 				</li>
 				<li>
@@ -83,21 +82,9 @@
 						rel="noopener noreferrer"
 						class="font-medium text-emerald-600 hover:underline dark:text-emerald-400"
 						>Compare Completed Quests</a>
-					by <span class="font-medium text-red-600 dark:text-red-400">Unknown</span>
 					— whose approach to identifying completed quests informed the early direction of this project's data handling.
 				</li>
 			</ol>
-			<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">
-				<strong>Note:</strong> If you know the sheet creator or maintainer or are the owner,
-				please reach out to the feedback/bug report button in the calculator and I will include you here.
-			</p>
-		</div>
-
-		<div>
-			<h2 class="font-semibold text-gray-900 dark:text-gray-100">Staff approval</h2>
-			<p class="mt-1">
-				Thank you to FarmRPG Staff <strong class="font-medium text-emerald-600 dark:text-emerald-400">coderanger</strong>, who provided technical access and guidance this calculator's data pipeline is built on, and reviewed and approved the site before it went live.
-			</p>
 		</div>
 
 		<p class="pt-2 text-xs text-gray-500 dark:text-gray-400">
