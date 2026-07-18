@@ -9,6 +9,20 @@ the page parses this file directly, so an entry added here is what users see.
 
 ## [Unreleased]
 
+### Added
+
+- A visible FAQ section on the About page, and a "?" header button linking straight to it.
+- A warning banner if your browser blocks saving (private browsing, storage full), so you know to back up your progress before closing the tab.
+- "Retry" buttons when quest or item data fails to load, instead of needing a full page reload.
+- Tapping a "CAPPED" badge now shows its explanation inline, for players on touch devices where hover tooltips don't work.
+
+### Changed
+
+- Clearing your inventory now asks for confirmation first, matching the existing confirmation on progress-import overwrite.
+- Parse errors and successes are now visually distinct (red vs. neutral text) instead of looking identical.
+- The "Import data" button now stands out as the primary action in the header.
+- The startup loading screen now also tracks quest and item data loading, not just saved preferences.
+
 ## [0.1.4] - 2026-07-17
 
 ### Added
