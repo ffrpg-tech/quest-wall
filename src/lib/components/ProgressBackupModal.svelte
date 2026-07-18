@@ -10,17 +10,19 @@
 		completed,
 		inventoryBaseline,
 		staleKeys,
+		selectedQuestlineNames = $bindable(),
 		onCompletedChanged
 	}: {
 		open: boolean;
 		completed: SvelteSet<string>;
 		inventoryBaseline: SvelteSet<string>;
 		staleKeys: SvelteSet<string>;
+		selectedQuestlineNames: string[];
 		onCompletedChanged: () => void;
 	} = $props();
 
 	function handleExport() {
-		const json = exportProgress(completed);
+		const json = exportProgress(completed, selectedQuestlineNames);
 		const blob = new Blob([json], { type: 'application/json' });
 		const url = URL.createObjectURL(blob);
 		const a = document.createElement('a');
@@ -49,15 +51,18 @@
 		if (
 			completed.size === 0 ||
 			confirm(
-				`Replace your current progress (${completed.size} quests marked done) with the imported file (${imported.size} quests)?`
+				`Replace your current progress (${completed.size} quests marked done) with the imported file (${imported.completed.size} quests)?`
 			)
 		) {
 			completed.clear();
-			for (const key of imported) completed.add(key);
+			for (const key of imported.completed) completed.add(key);
 			staleKeys.clear();
-			for (const key of imported) if (!inventoryBaseline.has(key)) staleKeys.add(key);
+			for (const key of imported.completed) if (!inventoryBaseline.has(key)) staleKeys.add(key);
 			onCompletedChanged();
-			importMessage = `Imported ${imported.size} completed quests.`;
+			if (imported.queue) selectedQuestlineNames = imported.queue;
+			importMessage = imported.queue
+				? `Imported ${imported.completed.size} completed quests and a ${imported.queue.length}-questline queue.`
+				: `Imported ${imported.completed.size} completed quests.`;
 		}
 		(e.target as HTMLInputElement).value = '';
 	}
@@ -84,9 +89,9 @@
 			</div>
 
 			<p class="mb-4 text-sm text-gray-600 dark:text-gray-300">
-				This backs up which quests you've marked done as a JSON file — not your inventory or
-				questline queue. Export before clearing browser data, or import a file to restore progress
-				on another device.
+				This backs up which quests you've marked done and your questline queue as a JSON file —
+				not your inventory. Export before clearing browser data, or import a file to restore
+				progress on another device.
 			</p>
 
 			<div class="flex gap-2">

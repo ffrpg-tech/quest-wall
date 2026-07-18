@@ -6,7 +6,7 @@ const INVENTORY_KEY = 'farmrpg-quest-tracker:inventory-v1';
 const QUEUE_KEY = 'farmrpg-quest-tracker:queue-v1';
 const INVENTORY_BASELINE_KEY = 'farmrpg-quest-tracker:inventory-baseline-completed-v1';
 const CHANGELOG_SEEN_KEY = 'farmrpg-quest-tracker:changelog-seen-v1';
-const EXPORT_VERSION = 1;
+const EXPORT_VERSION = 2;
 
 function hasLocalStorage(): boolean {
 	return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
@@ -121,23 +121,41 @@ export interface ProgressExport {
 	version: number;
 	exportedAt: string;
 	completed: string[];
+	/** Questline queue, in order — retains *what and why* the player was working toward,
+	 * not just which quests are already done. Absent from v1 exports. */
+	queue?: string[];
 }
 
-export function exportProgress(completed: Set<string>): string {
+export interface ImportedProgress {
+	completed: Set<string>;
+	/** Null when the imported file predates queue export (v1) or omitted it — callers
+	 * should leave the current queue untouched rather than clobbering it with an empty one. */
+	queue: string[] | null;
+}
+
+export function exportProgress(completed: Set<string>, queue: string[]): string {
 	const payload: ProgressExport = {
 		version: EXPORT_VERSION,
 		exportedAt: new Date().toISOString(),
-		completed: Array.from(completed).sort()
+		completed: Array.from(completed).sort(),
+		queue
 	};
 	return JSON.stringify(payload, null, 2);
 }
 
 /** Returns null (rather than throwing) when the pasted/uploaded text isn't a recognizable export, so the caller can show an error without crashing. */
-export function importProgress(text: string): Set<string> | null {
+export function importProgress(text: string): ImportedProgress | null {
 	try {
 		const parsed = JSON.parse(text);
 		if (!parsed || !Array.isArray(parsed.completed)) return null;
-		return new Set(parsed.completed.filter((v: unknown): v is string => typeof v === 'string'));
+		return {
+			completed: new Set(
+				parsed.completed.filter((v: unknown): v is string => typeof v === 'string')
+			),
+			queue: Array.isArray(parsed.queue)
+				? parsed.queue.filter((v: unknown): v is string => typeof v === 'string')
+				: null
+		};
 	} catch {
 		return null;
 	}

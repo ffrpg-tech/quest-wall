@@ -358,6 +358,7 @@
 	{completed}
 	{inventoryBaseline}
 	{staleKeys}
+	bind:selectedQuestlineNames
 	{onCompletedChanged}
 />
 

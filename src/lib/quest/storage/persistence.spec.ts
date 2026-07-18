@@ -2,11 +2,25 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { exportProgress, importProgress, loadCompleted, loadInventory } from './persistence';
 
 describe('exportProgress / importProgress', () => {
-	it('round-trips a completed set through JSON', () => {
+	it('round-trips a completed set and queue through JSON', () => {
 		const completed = new Set(['Chain A::Quest I', 'Chain A::Quest II']);
-		const json = exportProgress(completed);
+		const queue = ['Chain B', 'Chain A'];
+		const json = exportProgress(completed, queue);
 		const restored = importProgress(json);
-		expect(restored).toEqual(completed);
+		expect(restored?.completed).toEqual(completed);
+		expect(restored?.queue).toEqual(queue);
+	});
+
+	it('returns queue: null when importing a v1 export that predates the queue field', () => {
+		const completed = new Set(['Chain A::Quest I']);
+		const v1Json = JSON.stringify({
+			version: 1,
+			exportedAt: new Date().toISOString(),
+			completed: Array.from(completed)
+		});
+		const restored = importProgress(v1Json);
+		expect(restored?.completed).toEqual(completed);
+		expect(restored?.queue).toBeNull();
 	});
 
 	it('returns null for unparseable JSON instead of throwing', () => {
