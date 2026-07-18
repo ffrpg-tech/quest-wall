@@ -183,6 +183,10 @@ be monetized.
   site. The Bank tab feeds `parseBankPaste` and, when `includeBankBalance` is
   checked, folds wallet + bank Silver into the simulated inventory as a
   synthetic Silver entry.
+- `FeedbackModal.svelte` is static instructional content (contact `kodyy`
+  in-game), not a submission form/API — `+page.svelte` owns
+  `feedbackModalOpen` and passes it down as the modal's `open` `$bindable`,
+  same wiring pattern as the other modals.
 
 ## Workflow notes
 
