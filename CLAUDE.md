@@ -15,16 +15,17 @@ be monetized.
 
 ## Data pipeline (read before touching quest/item data)
 
-- `static/questlines.json` and `src/lib/data/items.json` are **generated,
+- `static/questlines.json` and `static/items.json` are **generated,
   not committed to this repo** — the regeneration script and instructions
   live in `api/` (`api/README.md`, `api/fetch-questlines.mjs`), which is
   itself gitignored in full; don't hand-edit the data files, and don't
-  un-gitignore the `api/` directory or its credentials. `questlines.json`
-  lives under `static/` (not `src/lib/data/`) and is
-  `fetch()`-ed by the client at runtime rather than statically imported, so
-  it ships as its own cacheable request instead of bloating the page's JS
+  un-gitignore the `api/` directory or its credentials. Both files
+  live under `static/` (not `src/lib/data/`) and are
+  `fetch()`-ed by the client at runtime (`itemsStore.svelte.ts`,
+  `questlinesStore.svelte.ts`) rather than statically imported, so each
+  ships as its own cacheable request instead of bloating the page's JS
   bundle — see `_headers` (project root) for the cache headers. Don't switch
-  it back to a static import without re-solving that egress problem some
+  either back to a static import without re-solving that egress problem some
   other way.
 - Questline grouping/ordering and quest identity come from an external
   source's own structure now — there is no more Roman-numeral/`Part NN`/

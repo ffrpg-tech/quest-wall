@@ -31,3 +31,6 @@ vite.config.js.timestamp-*
 vite.config.ts.timestamp-*
 # Playwright
 test-results
+
+# Claude Code local runtime state
+.claude/scheduled_tasks.lock
