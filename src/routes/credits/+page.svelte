@@ -48,7 +48,7 @@
 				<strong>Special thanks</strong> to these folks for providing me insights and contributions to create this project:
 			</p>
 			<ol class="mt-1 list-decimal space-y-1 pl-5">
-				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Erisere</span> — shared their stored quest data via CSV to initialize the data and helped test the calculator.</li>
+				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Erisere</span> — shared their stored quest data via CSV to initialize the data.</li>
 				<li><span class="font-medium text-emerald-600 dark:text-emerald-400">Natsulus</span> — offered early insights on client-side inventory collection that helped shape the direction of the inventory parser.</li>
 				<li>FarmRPG Staff <span class="font-medium text-emerald-600 dark:text-emerald-400">coderanger</span> — provided technical access and guidance for the data pipeline and several clarifications.</li>
 			</ol>
