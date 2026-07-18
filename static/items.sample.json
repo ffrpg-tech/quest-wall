@@ -1,6 +1,6 @@
 [
-	{ "name": "Sample Apple", "image": "/img/items/sample-apple.png" },
-	{ "name": "Sample Wood", "image": "/img/items/sample-wood.png" },
-	{ "name": "Sample Silver Ore", "image": "/img/items/sample-silver-ore.png" },
-	{ "name": "Sample Trout", "image": "/img/items/sample-trout.png" }
+	{ "name": "Sample Apple", "image": "" },
+	{ "name": "Sample Wood", "image": "" },
+	{ "name": "Sample Silver Ore", "image": "" },
+	{ "name": "Sample Trout", "image": "" }
 ]
