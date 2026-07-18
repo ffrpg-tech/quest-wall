@@ -2,7 +2,7 @@
 	import { Sun, Moon, MessageSquarePlus, Upload, Save, CircleHelp } from '@lucide/svelte';
 	import { resolve } from '$app/paths';
 	import { buttonClass } from '$lib/ui/buttonClass';
-	import { FEEDBACK_FORM_URL } from '$lib/config';
+	import FeedbackModal from './FeedbackModal.svelte';
 
 	let {
 		darkMode,
@@ -15,6 +15,8 @@
 		onOpenImport: () => void;
 		onOpenBackup: () => void;
 	} = $props();
+
+	let feedbackModalOpen = $state(false);
 </script>
 
 <header class="flex flex-wrap items-start justify-between gap-4">
@@ -25,15 +27,13 @@
 		</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<a
-			href={FEEDBACK_FORM_URL}
-			target="_blank"
-			rel="noopener noreferrer external"
+		<button
+			onclick={() => (feedbackModalOpen = true)}
 			class="flex items-center gap-1.5 {buttonClass('default')}"
 		>
 			<MessageSquarePlus size={16} class="text-sky-600 dark:text-sky-400" />
 			Feedback / report an issue
-		</a>
+		</button>
 		<button onclick={onOpenImport} class="flex items-center gap-1.5 {buttonClass('primary')}">
 			<Upload size={16} />
 			Import data
@@ -63,3 +63,5 @@
 		</button>
 	</div>
 </header>
+
+<FeedbackModal bind:open={feedbackModalOpen} />

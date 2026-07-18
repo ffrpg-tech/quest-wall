@@ -2,7 +2,6 @@
 	import { SvelteSet } from 'svelte/reactivity';
 	import { X } from '@lucide/svelte';
 	import { buttonClass } from '$lib/ui/buttonClass';
-	import { FEEDBACK_FORM_URL } from '$lib/config';
 	import ParseSuccessFlash from './ParseSuccessFlash.svelte';
 	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
 	import {
@@ -338,18 +337,29 @@
 					>
 					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
 						<ol class="list-decimal space-y-2 pl-5">
-							<li>Open FarmRPG (browser, or the Steam client) and go to your Inventory screen.</li>
 							<li>
-								Select the whole page — <kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700"
-									>Ctrl+A</kbd
-								>
-								/
-								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or
-								the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
-									class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
-								>
-								/
-								<strong>Edit &gt; Copy</strong>).
+								Open FarmRPG (browser, mobile browser, or the Steam client) and go to your
+								Inventory screen, then select and copy the whole page:
+								<ol class="mt-2 list-[lower-alpha] space-y-2 pl-5">
+									<li>
+										<strong>Desktop:</strong> select the whole page — <kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+A</kbd
+										>
+										/
+										<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser,
+										or the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
+										>
+										/
+										<strong>Edit &gt; Copy</strong>).
+									</li>
+									<li>
+										<strong>Mobile:</strong> long-press the page text, tap
+										<strong>Select All</strong>, then tap <strong>Copy</strong>. This works in some
+										mobile browsers but not all — if it doesn't grab the whole page, try a desktop
+										browser instead.
+									</li>
+								</ol>
 							</li>
 							<li>Come back here, paste the full copied text below, and click "Parse paste".</li>
 						</ol>
@@ -357,11 +367,7 @@
 							The parser looks for the inventory section within whatever you paste, so surrounding
 							chat/menu text is fine. Items shown as <code
 								class="rounded bg-gray-100 px-1 dark:bg-gray-700">MAX ON HAND</code
-							>
-							are flagged as maxed (<code class="rounded bg-gray-100 px-1 dark:bg-gray-700"
-								>Mastered</code
-							>/<code class="rounded bg-gray-100 px-1 dark:bg-gray-700">Grand Mastered</code> are a separate
-							crafting indicator and don't affect this). Mobile app pastes aren't supported.
+							> are flagged as maxed, which sets that item's storage cap for shortfall calculations.
 						</p>
 					</div>
 				</details>
@@ -413,18 +419,29 @@
 					<summary class="cursor-pointer p-2 text-sm font-medium">How do I get my Silver?</summary>
 					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
 						<ol class="list-decimal space-y-2 pl-5">
-							<li>Open FarmRPG (browser, or the Steam client) and go to the Bank page.</li>
 							<li>
-								Select the whole page — <kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700"
-									>Ctrl+A</kbd
-								>
-								/
-								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or
-								the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
-									class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
-								>
-								/
-								<strong>Edit &gt; Copy</strong>).
+								Open FarmRPG (browser, mobile browser, or the Steam client) and go to the Bank
+								page, then select and copy the whole page:
+								<ol class="mt-2 list-[lower-alpha] space-y-2 pl-5">
+									<li>
+										<strong>Desktop:</strong> select the whole page — <kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+A</kbd
+										>
+										/
+										<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser,
+										or the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
+										>
+										/
+										<strong>Edit &gt; Copy</strong>).
+									</li>
+									<li>
+										<strong>Mobile:</strong> long-press the page text, tap
+										<strong>Select All</strong>, then tap <strong>Copy</strong>. This works in some
+										mobile browsers but not all — if it doesn't grab the whole page, try a desktop
+										browser instead.
+									</li>
+								</ol>
 							</li>
 							<li>Come back here, paste the full copied text below, and click "Parse paste".</li>
 						</ol>
@@ -486,19 +503,28 @@
 					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
 						<ol class="list-decimal space-y-2 pl-5">
 							<li>
-								Open FarmRPG (browser, or the Steam client) and go to Help Needed &gt; Completed.
-							</li>
-							<li>
-								Select the whole page — <kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700"
-									>Ctrl+A</kbd
-								>
-								/
-								<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser, or
-								the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
-									class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
-								>
-								/
-								<strong>Edit &gt; Copy</strong>).
+								Open FarmRPG (browser, mobile browser, or the Steam client) and go to Help Needed
+								&gt; Completed, then select and copy the whole page:
+								<ol class="mt-2 list-[lower-alpha] space-y-2 pl-5">
+									<li>
+										<strong>Desktop:</strong> select the whole page — <kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+A</kbd
+										>
+										/
+										<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser,
+										or the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
+										>
+										/
+										<strong>Edit &gt; Copy</strong>).
+									</li>
+									<li>
+										<strong>Mobile:</strong> long-press the page text, tap
+										<strong>Select All</strong>, then tap <strong>Copy</strong>. This works in some
+										mobile browsers but not all — if it doesn't grab the whole page, try a desktop
+										browser instead.
+									</li>
+								</ol>
 							</li>
 							<li>Come back here, paste the full copied text below, and click "Parse paste".</li>
 						</ol>
@@ -508,7 +534,7 @@
 							which questline each one belongs to — matching quest names get marked done across
 							every questline that has one. If the same quest name is reused in more than one chain,
 							all of them get marked, since a bare name can't distinguish which chain it actually
-							came from. Mobile app pastes aren't supported.
+							came from.
 						</p>
 					</div>
 				</details>
@@ -567,13 +593,8 @@
 								>{unmatchedQuestNames.join('\n')}</code
 							></pre>
 						<p class="mt-2 text-xs text-amber-800 dark:text-amber-300">
-							These might be missing from the quest data. Copy the list above and paste it into the
-							<a
-								href={FEEDBACK_FORM_URL}
-								target="_blank"
-								rel="noopener noreferrer external"
-								class="font-medium underline">feedback form</a
-							> so they can get added.
+							These might be missing from the quest data. Copy the list above and send it to
+							<strong>kodyy</strong> in-game so they can get added.
 						</p>
 					</div>
 				{/if}

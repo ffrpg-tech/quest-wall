@@ -1,8 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { resolve } from '$app/paths';
-	import { SOURCE_URL } from '$lib/config';
-	import { getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
 	import { loadLastSeenChangelogVersion } from '$lib/quest/storage/persistence';
 	import { parseChangelog, latestVersion } from '$lib/changelog';
 	import changelogRaw from '../../../CHANGELOG.md?raw';
@@ -11,18 +9,6 @@
 	const currentYear = new Date().getFullYear();
 	const copyrightYears =
 		currentYear > LAUNCH_YEAR ? `${LAUNCH_YEAR}-${currentYear}` : `${LAUNCH_YEAR}`;
-
-	const questlinesState = getQuestlinesState();
-	const dataLastUpdated = $derived(questlinesState.dataLastUpdated);
-	const dataLastUpdatedLabel = $derived(
-		dataLastUpdated
-			? new Date(dataLastUpdated).toLocaleDateString(undefined, {
-					year: 'numeric',
-					month: 'short',
-					day: 'numeric'
-				})
-			: null
-	);
 
 	const latestChangelogVersion = latestVersion(parseChangelog(changelogRaw));
 	let hasUnseenChangelog = $state(false);
@@ -67,11 +53,6 @@
 		<a href={resolve('/credits')} class="text-emerald-600 hover:underline dark:text-emerald-400"
 			>Credits</a
 		>
-		{#if dataLastUpdatedLabel}
-			<span class="text-gray-300 dark:text-gray-600">&middot;</span>
-			<span class="text-gray-500 dark:text-gray-400">Quest data updated {dataLastUpdatedLabel}</span
-			>
-		{/if}
 		<span class="text-gray-300 dark:text-gray-600">&middot;</span>
 		<a
 			href={resolve('/changelog')}
@@ -85,13 +66,6 @@
 				>
 			{/if}
 		</a>
-		<span class="text-gray-300 dark:text-gray-600">&middot;</span>
-		<a
-			href={SOURCE_URL}
-			target="_blank"
-			rel="noopener noreferrer external"
-			class="text-emerald-600 hover:underline dark:text-emerald-400">Source code</a
-		>
 	</p>
 	<p class="mt-2">
 		&copy; {copyrightYears} <span class="text-gray-300 dark:text-gray-600">&middot;</span>
