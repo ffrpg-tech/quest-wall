@@ -17,6 +17,18 @@
 	const filteredShortfallSummary = $derived(
 		shortfallSummary.filter((s) => matchesQuery(s.item, shortfallSearch))
 	);
+
+	// CAPPED's `title` tooltip never reaches touch devices — tapping the badge
+	// toggles the same explanation inline instead, so the meaning is reachable
+	// without a mouse hover.
+	let expandedCappedItem = $state<string | null>(null);
+
+	function toggleCappedExplanation(item: string) {
+		expandedCappedItem = expandedCappedItem === item ? null : item;
+	}
+
+	const CAPPED_EXPLANATION =
+		'A single requirement for this item exceeds your known storage cap — no amount of farming clears this until the cap is raised or spent down elsewhere.';
 </script>
 
 {#if shortfallSummary.length > 0}
@@ -64,13 +76,19 @@
 									<ItemIcon name={s.item} />
 									{s.item}
 									{#if s.capped}
-										<span
-											title="A single requirement for this item exceeds your known storage cap — no amount of farming clears this until the cap is raised or spent down elsewhere."
-											class="rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
-											>CAPPED</span
+										<button
+											type="button"
+											onclick={() => toggleCappedExplanation(s.item)}
+											title={CAPPED_EXPLANATION}
+											aria-expanded={expandedCappedItem === s.item}
+											class="cursor-pointer rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
+											>CAPPED</button
 										>
 									{/if}
 								</div>
+								{#if s.capped && expandedCappedItem === s.item}
+									<p class="mt-1 text-xs text-gray-500 dark:text-gray-400">{CAPPED_EXPLANATION}</p>
+								{/if}
 								<div
 									class="mt-1 flex justify-between border-l border-gray-200 pl-2 text-xs font-medium text-gray-700 dark:border-gray-700 dark:text-gray-300"
 								>

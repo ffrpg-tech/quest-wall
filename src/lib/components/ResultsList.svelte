@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { ChevronRight } from '@lucide/svelte';
 	import type { QuestlineDiffResult } from '$lib/quest/calc/diff';
+	import { statusTextColorClass } from '$lib/ui/statusColor';
 	import ItemIcon from './ItemIcon.svelte';
 
 	let {
@@ -10,6 +11,19 @@
 		diffResults: QuestlineDiffResult[];
 		onToggleCompleted: (questlineName: string, questName: string) => void;
 	} = $props();
+
+	// CAPPED's `title` tooltip never reaches touch devices — tapping the badge
+	// toggles the same explanation inline instead, so the meaning is reachable
+	// without a mouse hover. Keyed by "questName:item" since the same item can
+	// be capped in more than one quest row.
+	let expandedCapped = $state<string | null>(null);
+
+	function toggleCappedExplanation(key: string) {
+		expandedCapped = expandedCapped === key ? null : key;
+	}
+
+	const CAPPED_EXPLANATION =
+		'This requirement exceeds your known storage cap for this item — no amount of farming clears this until the cap is raised or spent down elsewhere.';
 </script>
 
 {#if diffResults.length > 0}
@@ -81,19 +95,20 @@
 											<td class="p-2" class:line-through={q.done}>{q.questName}</td>
 											<td class="p-2">
 												{#if q.done}
-													<span class="text-gray-400">Done</span>
+													<span class={statusTextColorClass('neutral')}>Done</span>
 												{:else if q.ok}
-													<span class="text-emerald-600">Ready</span>
+													<span class={statusTextColorClass('good')}>Ready</span>
 												{:else if qi === diffResult.wallPointIndex}
-													<span class="font-semibold text-red-600">Wall Point</span>
+													<span class="font-semibold {statusTextColorClass('bad')}">Wall Point</span>
 												{:else}
-													<span class="text-amber-600">Short</span>
+													<span class={statusTextColorClass('warn')}>Short</span>
 												{/if}
 											</td>
 											<td class="p-2">
 												{#if q.shortfalls.length > 0}
 													<ul class="space-y-0.5 text-xs">
 														{#each q.shortfalls as s (s.item)}
+															{@const cappedKey = q.questName + ':' + s.item}
 															<li>
 																<span
 																	class="inline-flex items-center gap-1 font-medium text-gray-700 dark:text-gray-300"
@@ -113,11 +128,19 @@
 																	>{s.short}</span
 																>)
 																{#if s.capped}
-																	<span
-																		title="This requirement exceeds your known storage cap for this item — no amount of farming clears this until the cap is raised or spent down elsewhere."
-																		class="ml-1 rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
-																		>CAPPED</span
+																	<button
+																		type="button"
+																		onclick={() => toggleCappedExplanation(cappedKey)}
+																		title={CAPPED_EXPLANATION}
+																		aria-expanded={expandedCapped === cappedKey}
+																		class="ml-1 cursor-pointer rounded bg-red-100 px-1.5 py-0.5 text-[10px] font-semibold text-red-700 dark:bg-red-950 dark:text-red-300"
+																		>CAPPED</button
 																	>
+																{/if}
+																{#if s.capped && expandedCapped === cappedKey}
+																	<div class="mt-0.5 text-xs text-gray-500 dark:text-gray-400">
+																		{CAPPED_EXPLANATION}
+																	</div>
 																{/if}
 															</li>
 														{/each}

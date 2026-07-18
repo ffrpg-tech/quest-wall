@@ -1,5 +1,6 @@
 <script lang="ts">
-	import { Sun, Moon, MessageSquarePlus, Upload, Save } from '@lucide/svelte';
+	import { Sun, Moon, MessageSquarePlus, Upload, Save, CircleHelp } from '@lucide/svelte';
+	import { resolve } from '$app/paths';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { FEEDBACK_FORM_URL } from '$lib/config';
 
@@ -33,14 +34,22 @@
 			<MessageSquarePlus size={16} class="text-sky-600 dark:text-sky-400" />
 			Feedback / report an issue
 		</a>
-		<button onclick={onOpenImport} class="flex items-center gap-1.5 {buttonClass('default')}">
-			<Upload size={16} class="text-sky-600 dark:text-sky-400" />
+		<button onclick={onOpenImport} class="flex items-center gap-1.5 {buttonClass('primary')}">
+			<Upload size={16} />
 			Import data
 		</button>
 		<button onclick={onOpenBackup} class="flex items-center gap-1.5 {buttonClass('default')}">
 			<Save size={16} class="text-sky-600 dark:text-sky-400" />
 			Progress backup
 		</button>
+		<a
+			href="{resolve('/about')}#faq"
+			title="Help / FAQ"
+			aria-label="Help / FAQ"
+			class={buttonClass('icon')}
+		>
+			<CircleHelp size={16} />
+		</a>
 		<button
 			onclick={onToggleDarkMode}
 			aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}

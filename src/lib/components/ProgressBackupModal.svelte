@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Save, Upload } from '@lucide/svelte';
+	import { Save, Upload, X } from '@lucide/svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { exportProgress, importProgress } from '$lib/quest/storage/persistence';
@@ -79,7 +79,7 @@
 			<div class="mb-4 flex items-start justify-between">
 				<h2 id="backup-modal-title" class="text-lg font-semibold">Progress backup</h2>
 				<button onclick={() => (open = false)} class={buttonClass('icon')} aria-label="Close">
-					✕
+					<X size={16} />
 				</button>
 			</div>
 

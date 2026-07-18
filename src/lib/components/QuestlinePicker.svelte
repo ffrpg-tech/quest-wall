@@ -1,7 +1,9 @@
 <script lang="ts">
-	import { Upload, GripVertical, ChevronUp, ChevronDown } from '@lucide/svelte';
+	import { Upload, GripVertical, ChevronUp, ChevronDown, X } from '@lucide/svelte';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
+	import { retryQuestlines } from '$lib/quest/storage/questlinesStore.svelte';
+	import { statusTextColorClass, type SemanticStatus } from '$lib/ui/statusColor';
 	import type { Questline } from '$lib/quest/types';
 
 	let {
@@ -36,10 +38,10 @@
 		return 'ongoing';
 	}
 
-	const statusColorClass: Record<ReturnType<typeof questlineStatus>, string> = {
-		'not-started': 'text-red-600 dark:text-red-400',
-		ongoing: 'text-amber-600 dark:text-amber-400',
-		done: 'text-emerald-600 dark:text-emerald-400'
+	const questlineSemanticStatus: Record<ReturnType<typeof questlineStatus>, SemanticStatus> = {
+		'not-started': 'bad',
+		ongoing: 'warn',
+		done: 'good'
 	};
 
 	const filteredQuestlines = $derived(
@@ -70,6 +72,11 @@
 		selectedQuestlineNames = selectedQuestlineNames.filter((n) => n !== name);
 	}
 
+	// Announced via the aria-live region below so screen-reader users hear the
+	// result of a reorder — a sighted user sees the row move, but nothing else
+	// signals that to someone who can't see the drag/drop or the row shift.
+	let reorderAnnouncement = $state('');
+
 	/** Keyboard-operable equivalent to the drag-to-reorder handling below — dragging has no
 	 * keyboard alternative on its own, so this gives keyboard users a way to reorder the queue. */
 	function moveQueueItem(index: number, delta: number) {
@@ -79,6 +86,7 @@
 		const [moved] = next.splice(index, 1);
 		next.splice(to, 0, moved);
 		selectedQuestlineNames = next;
+		reorderAnnouncement = `Moved ${moved} to position ${to + 1} of ${next.length}.`;
 	}
 
 	// ---------- Queue drag-to-reorder ----------
@@ -96,6 +104,7 @@
 		const [moved] = next.splice(dragFromIndex, 1);
 		next.splice(toIndex, 0, moved);
 		selectedQuestlineNames = next;
+		reorderAnnouncement = `Moved ${moved} to position ${toIndex + 1} of ${next.length}.`;
 		dragFromIndex = null;
 		dragOverIndex = null;
 	}
@@ -129,7 +138,7 @@
 				title="Clear questline search"
 				class="absolute top-1/2 right-2 -translate-y-1/2 {buttonClass('icon-danger')}"
 			>
-				✕
+				<X size={14} />
 			</button>
 		{/if}
 	</div>
@@ -152,7 +161,7 @@
 				{#each filteredQuestlines as g (g.name)}
 					{@const doneCount = completedCountByQuestline.get(g.name) ?? 0}
 					{@const queued = selectedQuestlineNameSet.has(g.name)}
-					{@const statusColor = statusColorClass[questlineStatus(g, doneCount)]}
+					{@const statusColor = statusTextColorClass(questlineSemanticStatus[questlineStatus(g, doneCount)])}
 					<li>
 						<button
 							onclick={() => toggleQueue(g.name)}
@@ -170,11 +179,16 @@
 					</li>
 				{:else}
 					<li class="p-4 text-center text-xs text-gray-400">
-						{questlinesError
-							? 'Quest data failed to load — try refreshing.'
-							: questlinesHydrated
-								? 'No questlines match that search/filter.'
-								: 'Loading questlines…'}
+						{#if questlinesError}
+							<span class="flex items-center justify-center gap-2">
+								Quest data failed to load.
+								<button onclick={() => retryQuestlines()} class={buttonClass('link')}>Retry</button>
+							</span>
+						{:else if questlinesHydrated}
+							No questlines match that search/filter.
+						{:else}
+							Loading questlines…
+						{/if}
 					</li>
 				{/each}
 			</ul>
@@ -185,6 +199,7 @@
 				<h3 class="text-xs font-medium text-gray-500 dark:text-gray-400">
 					Queue ({selectedQuestlines.length}) — order matters, shared inventory
 				</h3>
+				<span class="sr-only" role="status" aria-live="polite">{reorderAnnouncement}</span>
 				<ul class="min-h-0 flex-1 space-y-1 overflow-y-auto pr-1">
 					{#each selectedQuestlines as g, i (g.name)}
 						<li
@@ -246,7 +261,7 @@
 									title="Remove from queue"
 									class={buttonClass('icon-danger')}
 								>
-									✕
+									<X size={14} />
 								</button>
 							</span>
 						</li>
