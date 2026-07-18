@@ -5,6 +5,9 @@ interface ItemData {
 	image: string;
 }
 
+/** Item images are hotlinked directly from FarmRPG's own CDN, never downloaded/served locally. */
+const FARMRPG_ORIGIN = 'https://farmrpg.com';
+
 /** Module-level state — see questlinesStore.svelte.ts for why this is hoisted out of the page component rather than fetched in onMount. */
 let imageByName = $state<Map<string, string>>(new Map());
 let itemNames = $state<Set<string>>(new Set());
@@ -19,7 +22,7 @@ async function fetchItems(): Promise<void> {
 		const parsed: unknown = await res.json();
 		if (!Array.isArray(parsed)) throw new Error('items.json failed shape validation');
 		const items = parsed as ItemData[];
-		imageByName = new Map(items.map((item) => [item.name, item.image.split('?')[0]]));
+		imageByName = new Map(items.map((item) => [item.name, item.image]));
 		itemNames = new Set(items.map((item) => item.name));
 	} catch (err) {
 		console.error(err);
@@ -39,9 +42,6 @@ export function loadItems(): Promise<void> {
 
 export function getItemsState() {
 	return {
-		get imageByName() {
-			return imageByName;
-		},
 		get itemNames() {
 			return itemNames;
 		},
@@ -56,5 +56,5 @@ export function getItemsState() {
 
 export function getItemImagePath(name: string): string | undefined {
 	const image = imageByName.get(name);
-	return image ? `${base}${image}` : undefined;
+	return image ? `${FARMRPG_ORIGIN}${image}` : undefined;
 }
