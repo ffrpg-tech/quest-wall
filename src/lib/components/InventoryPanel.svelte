@@ -30,7 +30,9 @@
 	}
 
 	function clearInventoryTable() {
-		inventory = [];
+		if (inventory.length === 0 || confirm(`Clear all ${inventory.length} inventory items?`)) {
+			inventory = [];
+		}
 	}
 </script>
 
@@ -88,7 +90,7 @@
 					title="Clear inventory search"
 					class="absolute top-1/2 right-3 -translate-y-1/2 {buttonClass('icon-danger')}"
 				>
-					✕
+					<X size={14} />
 				</button>
 			{/if}
 		</div>

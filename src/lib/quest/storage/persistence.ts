@@ -26,13 +26,17 @@ function loadJSONArray<T>(key: string, isValidElement: (el: unknown) => el is T)
 	}
 }
 
-/** Writes a value as JSON, silently no-oping on write failure (storage full/unavailable in private browsing) — the caller's data just won't persist this session. */
-function saveJSON(key: string, value: unknown): void {
-	if (!hasLocalStorage()) return;
+/** Writes a value as JSON. Returns false on write failure (storage full/unavailable in
+ * private browsing) so callers can warn the user that this write won't persist this
+ * session, rather than the failure being silent. Returns true when there's no
+ * localStorage to write to at all (SSR) — that's not a failure worth warning about. */
+function saveJSON(key: string, value: unknown): boolean {
+	if (!hasLocalStorage()) return true;
 	try {
 		window.localStorage.setItem(key, JSON.stringify(value));
+		return true;
 	} catch {
-		// Storage full/unavailable — this write just won't persist this session.
+		return false;
 	}
 }
 
@@ -44,8 +48,8 @@ export function loadCompleted(): Set<string> {
 	return new Set(loadJSONArray(STORAGE_KEY, isString));
 }
 
-export function saveCompleted(completed: Set<string>): void {
-	saveJSON(STORAGE_KEY, Array.from(completed));
+export function saveCompleted(completed: Set<string>): boolean {
+	return saveJSON(STORAGE_KEY, Array.from(completed));
 }
 
 /** Snapshot of `completed` at the moment the inventory was last pasted — lets the UI
@@ -57,8 +61,8 @@ export function loadInventoryBaseline(): Set<string> {
 	return new Set(loadJSONArray(INVENTORY_BASELINE_KEY, isString));
 }
 
-export function saveInventoryBaseline(completed: Set<string>): void {
-	saveJSON(INVENTORY_BASELINE_KEY, Array.from(completed));
+export function saveInventoryBaseline(completed: Set<string>): boolean {
+	return saveJSON(INVENTORY_BASELINE_KEY, Array.from(completed));
 }
 
 /** Falls back to the OS/browser preference when nothing has been saved yet. */
@@ -70,9 +74,8 @@ export function loadDarkMode(): boolean {
 	return window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false;
 }
 
-export function saveDarkMode(enabled: boolean): void {
-	if (!hasLocalStorage()) return;
-	window.localStorage.setItem(DARK_MODE_KEY, String(enabled));
+export function saveDarkMode(enabled: boolean): boolean {
+	return saveJSON(DARK_MODE_KEY, enabled);
 }
 
 function isInventoryEntry(v: unknown): v is InventoryEntry {
@@ -91,16 +94,16 @@ export function loadInventory(): InventoryEntry[] {
 	return loadJSONArray(INVENTORY_KEY, isInventoryEntry);
 }
 
-export function saveInventory(inventory: InventoryEntry[]): void {
-	saveJSON(INVENTORY_KEY, inventory);
+export function saveInventory(inventory: InventoryEntry[]): boolean {
+	return saveJSON(INVENTORY_KEY, inventory);
 }
 
 export function loadQueue(): string[] {
 	return loadJSONArray(QUEUE_KEY, isString);
 }
 
-export function saveQueue(queue: string[]): void {
-	saveJSON(QUEUE_KEY, queue);
+export function saveQueue(queue: string[]): boolean {
+	return saveJSON(QUEUE_KEY, queue);
 }
 
 /** Null means "never viewed the changelog" — every real version is a non-empty string. */
