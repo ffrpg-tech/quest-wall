@@ -69,7 +69,9 @@
 						No items match "{shortfallSearch}".
 					</p>
 				{:else}
-					<ul class="grid grid-cols-1 gap-x-6 gap-y-2 text-sm sm:grid-cols-3">
+					<ul
+						class="grid max-h-[60vh] grid-cols-1 gap-x-6 gap-y-2 overflow-y-auto text-sm sm:grid-cols-3 md:max-h-none md:overflow-visible"
+					>
 						{#each filteredShortfallSummary as s (s.item)}
 							<li class="border-b border-gray-100 py-1 dark:border-gray-700">
 								<div class="flex items-center gap-1.5 font-medium text-gray-900 dark:text-gray-100">

@@ -26,17 +26,27 @@
 		</p>
 	</div>
 	<div class="flex flex-wrap items-center gap-2">
-		<button onclick={onOpenFeedback} class="flex items-center gap-1.5 {buttonClass('default')}">
+		<button
+			onclick={onOpenFeedback}
+			title="Feedback / report an issue"
+			aria-label="Feedback / report an issue"
+			class="flex items-center gap-1.5 {buttonClass('default')}"
+		>
 			<MessageSquarePlus size={16} class="text-sky-600 dark:text-sky-400" />
-			Feedback / report an issue
+			<span class="hidden sm:inline">Feedback / report an issue</span>
 		</button>
 		<button onclick={onOpenImport} class="flex items-center gap-1.5 {buttonClass('primary')}">
 			<Upload size={16} />
 			Import data
 		</button>
-		<button onclick={onOpenBackup} class="flex items-center gap-1.5 {buttonClass('default')}">
+		<button
+			onclick={onOpenBackup}
+			title="Progress backup"
+			aria-label="Progress backup"
+			class="flex items-center gap-1.5 {buttonClass('default')}"
+		>
 			<Save size={16} class="text-sky-600 dark:text-sky-400" />
-			Progress backup
+			<span class="hidden sm:inline">Progress backup</span>
 		</button>
 		<a
 			href="{resolve('/about')}#faq"

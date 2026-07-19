@@ -331,7 +331,7 @@
 	{/if}
 
 	<main class="space-y-8">
-		<section class="grid gap-6 md:h-[100vh] md:grid-cols-2">
+		<section class="grid grid-rows-[60vh_70vh] gap-6 md:h-[100vh] md:grid-cols-2 md:grid-rows-none">
 			<InventoryPanel
 				bind:inventory
 				{inventoryStale}

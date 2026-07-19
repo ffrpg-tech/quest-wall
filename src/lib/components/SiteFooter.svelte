@@ -20,12 +20,12 @@
 </script>
 
 <footer
-	class="mt-12 border-t border-gray-200 pt-6 text-center text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400"
+	class="mt-12 border-t border-gray-200 pt-6 text-center text-[11px] text-gray-500 dark:border-gray-700 dark:text-gray-400 sm:text-xs"
 >
-	<p class="mt-1">
+	<p class="mt-2">
 		This is a <strong>fan project</strong> and will <em class="text-red-600 dark:text-red-400">never</em> be monetized.
 	</p>
-	<p class="mt-1">
+	<p class="mt-2">
 		FarmRPG and all related names, marks, and materials are trademarks of
 		<strong>Magic and Wires, LLC</strong> —
 		<a
@@ -33,13 +33,13 @@
 			target="_blank"
 			rel="noopener noreferrer"
 			class="text-emerald-600 hover:underline dark:text-emerald-400">farmrpg.com</a
-		>. 
+		>.
 	</p>
-	<p class="mt-1">
+	<p class="mt-2">
 		This is an <em class="text-red-600 dark:text-red-400">unofficial</em> fan project and is not affiliated with, endorsed by, or
 		sponsored by Magic and Wires, LLC.
 	</p>
-	<p class="mt-1">
+	<p class="mt-2">
 		This project is built with <strong>AI assistance</strong> — but
 		<span class="font-semibold text-emerald-600 dark:text-emerald-400"
 			>thoroughly tested and validated by humans</span
