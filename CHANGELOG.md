@@ -9,6 +9,17 @@ the page parses this file directly, so an entry added here is what users see.
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-19
+
+### Changed
+
+- Mobile layout overhaul: the Inventory and Questline panels, Shortfall summary, and each questline's quest list are now height-capped with their own internal scrolling on narrow screens, instead of growing to fit all their content and burying the footer under a very long page.
+- The Questline panel gets extra height on mobile relative to the Inventory panel, since it packs a search box, status filters, the quest list, and the queue into the same space.
+- The header's "Feedback" and "Progress backup" buttons collapse to icon-only on mobile (with accessible labels), matching the existing Help and dark-mode icon buttons; "Import data" keeps its label as the primary action.
+- Each Results row now stacks the questline name above its status on mobile instead of squeezing both onto one line and ellipsis-truncating the text.
+- Each questline's expandable quest list now renders as a stacked card per quest on mobile instead of a 5-column table, so quest names and shortfall numbers no longer wrap awkwardly or overlap.
+- The footer's text is smaller and its paragraphs have more breathing room on mobile.
+
 ## [0.1.4] - 2026-07-18
 
 ### Added
