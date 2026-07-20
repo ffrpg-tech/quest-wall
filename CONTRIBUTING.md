@@ -19,16 +19,17 @@ npm install
 npm run dev
 ```
 
-The app fetches `questlines.json`/`items.json` from `static/` at runtime
-rather than importing them, and those two files are gitignored (see the
+The app fetches `questlines.json`/`items.json`/`npc.json` from `static/` at
+runtime rather than importing them, and those files are gitignored (see the
 data pipeline note below) — so a fresh clone won't have them. `npm run dev`
 and `npm run test` both run a `predev`/`pretest` step (`npm run seed-data`)
 that copies the committed `static/questlines.sample.json` /
-`static/items.sample.json` into `static/questlines.json` / `items.json` if
-those files don't already exist. The sample data is fake (made-up quest and
-item names) — just enough shape to exercise the app and calculation logic
-locally. It never overwrites real data: if you've already run the `api/`
-fetch script and have real files in `static/`, the seed step is a no-op.
+`static/items.sample.json` / `static/npc.sample.json` into
+`static/questlines.json` / `items.json` / `npc.json` if those files don't
+already exist. The sample data is fake (made-up quest, item, and NPC names)
+— just enough shape to exercise the app and calculation logic locally. It
+never overwrites real data: if you've already run the `api/` fetch script
+and have real files in `static/`, the seed step is a no-op.
 
 ### Before opening a PR
 

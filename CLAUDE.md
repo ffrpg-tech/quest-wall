@@ -15,26 +15,34 @@ be monetized.
 
 ## Data pipeline (read before touching quest/item data)
 
-- `static/questlines.json` and `static/items.json` are **generated,
-  not committed to this repo** — the regeneration script and instructions
-  live in `api/` (`api/README.md`, `api/fetch-questlines.mjs`), which is
-  itself gitignored in full; don't hand-edit the data files, and don't
-  un-gitignore the `api/` directory or its credentials. Both files are
+- `static/questlines.json`, `static/items.json`, and `static/npc.json` are
+  **generated, not committed to this repo** — the regeneration script and
+  instructions live in `api/` (`api/README.md`, `api/fetch-questlines.mjs`),
+  which is itself gitignored in full; don't hand-edit the data files, and
+  don't un-gitignore the `api/` directory or its credentials. All three are
   `fetch()`-ed by the client at runtime (`itemsStore.svelte.ts`,
-  `questlinesStore.svelte.ts`) rather than statically imported, so each
-  ships as its own cacheable request instead of bloating the page's JS
-  bundle — see `_headers` (project root) for the cache headers. Don't switch
-  either back to a static import without re-solving that egress problem some
-  other way. `questlinesStore.svelte.ts` also fetches `static/questlines-meta.json`
+  `questlinesStore.svelte.ts`, `npcsStore.svelte.ts`) rather than statically
+  imported, so each ships as its own cacheable request instead of bloating
+  the page's JS bundle — see `_headers` (project root) for the cache
+  headers. Don't switch any of them back to a static import without
+  re-solving that egress problem some other way. `npc.json`'s `isAvailable`
+  is a snapshot at fetch time, not a real date range — `npcsStore.svelte.ts`
+  filters `isAvailable: false` NPCs out entirely (permanently gone) rather
+  than feeding them into the seasonal-gap logic in `eligibility.ts`, which
+  needs actual `startDate`/`endDate` values that this data doesn't have.
+  `api/fetch-questlines.mjs` doesn't fetch NPC data yet — `static/npc.json`
+  is currently seeded by hand from a one-off API response; wire it into the
+  fetch script if/when that source is confirmed stable.
+  `questlinesStore.svelte.ts` also fetches `static/questlines-meta.json`
   (also generated/gitignored) for `dataLastUpdated`; a missing/malformed meta
   file fails silently rather than surfacing `questlinesError`, since it's
   supplementary.
 - A fresh clone won't have those gitignored files. `npm run dev` and
   `npm run test` run a `predev`/`pretest` `seed-data` step
   (`scripts/seed-data.mjs`) that copies committed, synthetic
-  `static/questlines.sample.json` / `items.sample.json` into the real
-  filenames **only if they don't already exist** — never overwrites real
-  fetched data. See `CONTRIBUTING.md`.
+  `static/questlines.sample.json` / `items.sample.json` / `npc.sample.json`
+  into the real filenames **only if they don't already exist** — never
+  overwrites real fetched data. See `CONTRIBUTING.md`.
 - Questline grouping/ordering and quest identity come from an external
   source's own structure — no title-parsing step derives them. A quest
   belonging to multiple questlines gets a full `Quest` object denormalized
