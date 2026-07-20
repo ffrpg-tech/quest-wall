@@ -40,10 +40,7 @@
 		sponsored by Magic and Wires, LLC.
 	</p>
 	<p class="mt-2">
-		This project is built with <strong>AI assistance</strong> — but
-		<span class="font-semibold text-emerald-600 dark:text-emerald-400"
-			>thoroughly tested and validated by humans</span
-		>.
+		Built with <strong>AI assistance</strong>, reviewed and tested by a human before every release.
 	</p>
 	<p class="mt-2 flex flex-wrap items-center justify-center gap-x-3 gap-y-1">
 		<a href="{resolve('/about')}#why" class="text-emerald-600 hover:underline dark:text-emerald-400"
@@ -69,6 +66,5 @@
 	</p>
 	<p class="mt-2">
 		&copy; {copyrightYears} <span class="text-gray-300 dark:text-gray-600">&middot;</span>
-		Created by kodyy (in-game name in FarmRPG)
 	</p>
 </footer>

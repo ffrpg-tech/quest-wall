@@ -11,7 +11,7 @@ export const faqItems = [
 	{
 		question: 'Is this affiliated with FarmRPG?',
 		answer:
-			"No. This is an unofficial fan project, reviewed and approved by FarmRPG staff before it went live, but it isn't made or run by the FarmRPG developers. All credit for the game goes to them."
+			"No. This is an unofficial fan project, it isn't made or run by the FarmRPG developers. All credit for the game goes to them."
 	},
 	{
 		question: 'Does it cost anything?',

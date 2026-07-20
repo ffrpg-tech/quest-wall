@@ -70,7 +70,7 @@
 		<p>
 			That's exactly what happened to me while working on my ATI quest, and I could tell it wouldn't stop being a problem once ATI was done.
 			So I decided to build a tool that could plan out questlines and show where I — and anyone else — would wall.
-			I wanted it to be usable by anyone too, so it's a web app, accessible from desktop or mobile.
+			I wanted it to be usable by anyone too, so with my knowledge towards software development, I made it as a web application, accessible from desktop and mobile.
 		</p>
 		<p>
 			The premise is: paste your inventory and your finished questlines, then pick your next questlines — it walks the chain and shows you exactly where you
@@ -82,7 +82,7 @@
 				class="font-medium text-emerald-600 hover:underline dark:text-emerald-400">credits page</a
 			> for who made that possible.
 		</p>
-		<p>This project is built with <strong>AI assistance</strong>. Testing and debugging were <span class="font-medium text-emerald-600 dark:text-emerald-400">validated by humans</span>.</p>
+		<p>This project is built with <strong>AI assistance</strong>, reviewed and tested by a human before every release.</p>
 		</div>
 	</section>
 
