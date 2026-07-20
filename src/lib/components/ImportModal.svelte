@@ -3,7 +3,7 @@
 	import { X } from '@lucide/svelte';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import ParseSuccessFlash from './ParseSuccessFlash.svelte';
-	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
+	import { questKey, type ImportTab, type InventoryEntry, type PlayerStats, type Questline } from '$lib/quest/types';
 	import {
 		parseInventoryPaste,
 		InventoryParseError,
@@ -12,18 +12,19 @@
 	} from '$lib/quest/parsing/inventory';
 	import { parseCompletedQuestNames, CompletedQuestParseError } from '$lib/quest/parsing/completed';
 	import { parseBankPaste, BankParseError } from '$lib/quest/parsing/bank';
-	import { saveInventoryBaseline } from '$lib/quest/storage/persistence';
+	import { parsePlayerStatsPaste, StatsParseError } from '$lib/quest/parsing/stats';
+	import { saveInventoryBaseline, savePlayerStats } from '$lib/quest/storage/persistence';
 	import { getItemsState, retryItems } from '$lib/quest/storage/itemsStore.svelte';
+	import { getNpcNames } from '$lib/quest/storage/npcsStore.svelte';
 	import { trapFocus } from '$lib/ui/trapFocus';
 
 	const itemsState = getItemsState();
-
-	type ImportTab = 'inventory' | 'bank' | 'completed';
 
 	let {
 		open = $bindable(),
 		tab = $bindable(),
 		inventory = $bindable(),
+		playerStats = $bindable(),
 		questlineOptions,
 		completed,
 		inventoryBaseline,
@@ -34,6 +35,7 @@
 		open: boolean;
 		tab: ImportTab;
 		inventory: InventoryEntry[];
+		playerStats: PlayerStats | null;
 		questlineOptions: Questline[];
 		completed: SvelteSet<string>;
 		inventoryBaseline: SvelteSet<string>;
@@ -194,6 +196,42 @@
 		flashSuccess(text);
 	}
 
+	// ---------- Player stats tab ----------
+
+	let statsPasteText = $state('');
+	let statsParseMessage = $state<StatusMessage | null>(null);
+
+	function clearStatsPasteText() {
+		statsPasteText = '';
+		statsParseMessage = null;
+	}
+
+	function handleParseStats() {
+		if (!statsPasteText.trim()) {
+			statsParseMessage = { text: 'Nothing to parse.', ok: false };
+			return;
+		}
+
+		let parsed: PlayerStats;
+		try {
+			const liveNpcNames = getNpcNames();
+			parsed =
+				liveNpcNames.length > 0
+					? parsePlayerStatsPaste(statsPasteText, liveNpcNames)
+					: parsePlayerStatsPaste(statsPasteText);
+		} catch (err) {
+			statsParseMessage = { text: parseErrorMessage(err, StatsParseError), ok: false };
+			return;
+		}
+
+		playerStats = parsed;
+		if (!savePlayerStats(parsed)) onStorageWriteFailed();
+		const npcCount = Object.keys(parsed.npcLevels).length;
+		const text = `Parsed player stats (${npcCount} friendship level${npcCount === 1 ? '' : 's'} found).`;
+		statsParseMessage = { text, ok: true };
+		flashSuccess(text);
+	}
+
 	// ---------- Completed quests tab ----------
 
 	/** Quest name -> every (questline, quest) pair with that exact name.
@@ -323,6 +361,14 @@
 					aria-selected={tab === 'completed'}
 				>
 					Completed quests
+				</button>
+				<button
+					onclick={() => (tab = 'stats')}
+					class={buttonClass('pill', tab === 'stats')}
+					role="tab"
+					aria-selected={tab === 'stats'}
+				>
+					Player stats
 				</button>
 			</div>
 
@@ -598,6 +644,86 @@
 						</p>
 					</div>
 				{/if}
+			{:else if tab === 'stats'}
+				<details
+					bind:open={showScraperHelp}
+					class="mb-3 rounded border border-gray-200 dark:border-gray-700"
+				>
+					<summary class="cursor-pointer p-2 text-sm font-medium"
+						>How do I get my player stats?</summary
+					>
+					<div class="border-t border-gray-200 p-3 text-sm dark:border-gray-700">
+						<ol class="list-decimal space-y-2 pl-5">
+							<li>
+								Open FarmRPG (browser, mobile browser, or the Steam client) and go to
+								<strong>My Profile</strong>, then select and copy the whole page:
+								<ol class="mt-2 list-[lower-alpha] space-y-2 pl-5">
+									<li>
+										<strong>Desktop:</strong> select the whole page — <kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+A</kbd
+										>
+										/
+										<kbd class="rounded bg-gray-100 px-1 dark:bg-gray-700">Cmd+A</kbd> in a browser,
+										or the Steam client's <strong>Edit &gt; Select All</strong> — then copy it (<kbd
+											class="rounded bg-gray-100 px-1 dark:bg-gray-700">Ctrl+C</kbd
+										>
+										/
+										<strong>Edit &gt; Copy</strong>).
+									</li>
+									<li>
+										<strong>Mobile:</strong> long-press the page text, tap
+										<strong>Select All</strong>, then tap <strong>Copy</strong>. This works in some
+										mobile browsers but not all — if it doesn't grab the whole page, try a desktop
+										browser instead.
+									</li>
+								</ol>
+							</li>
+							<li>Come back here, paste the full copied text below, and click "Parse paste".</li>
+						</ol>
+						<p class="mt-3 text-xs text-gray-500 dark:text-gray-400">
+							This reads your Farming/Fishing/Crafting/Exploring/Cooking/Tower levels and
+							Friendship Levels with each Townsfolk NPC, and unlocks the eligibility filter and lock
+							badges on the questline list below.
+						</p>
+					</div>
+				</details>
+
+				<div class="mb-1 flex justify-end">
+					<button
+						onclick={() => pasteFromClipboard((v) => (statsPasteText = v))}
+						class={buttonClass('default')}
+					>
+						Paste from clipboard
+					</button>
+				</div>
+				<div class="relative">
+					<textarea
+						bind:value={statsPasteText}
+						rows="6"
+						placeholder="Paste the full My Profile page text here"
+						aria-label="Paste player stats text"
+						class="w-full rounded border border-gray-300 p-2 pr-9 font-mono text-xs dark:border-gray-600 dark:bg-gray-800"
+					></textarea>
+					{#if statsPasteText}
+						<button
+							onclick={clearStatsPasteText}
+							aria-label="Clear pasted text"
+							title="Clear pasted text"
+							class="absolute top-2 right-3 {buttonClass('icon-danger')}"
+						>
+							<X size={16} />
+						</button>
+					{/if}
+				</div>
+				<div class="mt-2 flex items-center gap-2">
+					<button onclick={handleParseStats} class={buttonClass('primary')}>Parse paste</button>
+					{#if statsParseMessage}
+						<span class={statusMessageClass(statsParseMessage.ok)}>{statsParseMessage.text}</span>
+					{/if}
+				</div>
+				<p class="mt-1 text-xs text-gray-400 dark:text-gray-500">
+					This overwrites your previously pasted stats.
+				</p>
 			{/if}
 			</div>
 		</div>

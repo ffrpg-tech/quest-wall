@@ -3,13 +3,17 @@
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
 	import { retryQuestlines, getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
+	import { getNpcImagePath } from '$lib/quest/storage/npcsStore.svelte';
 	import { statusTextColorClass, type SemanticStatus } from '$lib/ui/statusColor';
 	import type { Questline } from '$lib/quest/types';
+	import { isUnavailable, type EligibilityGap, type QuestlineEligibility } from '$lib/quest/calc/eligibility';
+	import { toggleExpanded } from '$lib/ui/toggleExpanded';
 
 	let {
 		questlineOptions,
 		questlineByName,
 		completedCountByQuestline,
+		eligibilityByQuestline,
 		selectedQuestlineNames = $bindable(),
 		questlinesHydrated,
 		questlinesError,
@@ -18,15 +22,91 @@
 		questlineOptions: Questline[];
 		questlineByName: Map<string, Questline>;
 		completedCountByQuestline: Map<string, number>;
+		eligibilityByQuestline: Map<string, QuestlineEligibility>;
 		selectedQuestlineNames: string[];
 		questlinesHydrated: boolean;
 		questlinesError: boolean;
 		onOpenImportCompleted: () => void;
 	} = $props();
 
+	// eligibilityByQuestline is now always populated once questlines are loaded
+	// (season gaps are evaluated regardless of player stats — see eligibility.ts)
+	// — this just gates the filter/badge UI on "do we have any questlines at all".
+	const hasEligibilityData = $derived(eligibilityByQuestline.size > 0);
+
+	type EligibilityFilter = 'eligible' | 'locked';
+	// Checkbox-style multi-select (any combination), not a single active choice —
+	// different players want different combinations (e.g. locked + not-started).
+	// Defaults to 'eligible' only checked, so the picker opens showing what's
+	// actually startable right now.
+	let eligibilityFilters = $state<Set<EligibilityFilter>>(new Set(['eligible']));
+
+	function toggleInSet<T>(set: Set<T>, value: T): Set<T> {
+		const next = new Set(set);
+		if (next.has(value)) next.delete(value);
+		else next.add(value);
+		return next;
+	}
+
+	// Expired-season quests are a different category from an ordinary skill/NPC
+	// lock — there's no known guarantee they ever return — so they're excluded
+	// from the list entirely by default rather than folded into "Locked", and
+	// surfaced only via this explicit opt-in toggle.
+	let showUnavailable = $state(false);
+
+	// Second, independent "wall" from diff.ts's material wall. Deliberately
+	// `canStartNow`, not `allEligible` — a chain with a gap 20 quests from now
+	// but a clean next quest is still fully startable today, so it shouldn't
+	// read as LOCKED here (that would misrepresent "you can't touch this chain
+	// at all" when really only a future quest is walled — that case is still
+	// visible per-quest in the Results panel once queued, see ResultsList.svelte).
+	function questlineEligible(g: Questline): boolean {
+		return eligibilityByQuestline.get(g.name)?.canStartNow ?? true;
+	}
+
+	// CAPPED's `title` tooltip never reaches touch devices — tapping the badge
+	// toggles the same explanation inline instead, matching that existing pattern.
+	let expandedLock = $state<string | null>(null);
+
+	function toggleLockExplanation(name: string) {
+		expandedLock = toggleExpanded(expandedLock, name);
+	}
+
+	// The first non-done quest is exactly the one blocking `canStartNow` above
+	// whenever this questline is locked, so this always resolves to the real
+	// current blocker, not some other gapped quest further down the chain.
+	function lockGaps(g: Questline) {
+		const eligibility = eligibilityByQuestline.get(g.name);
+		if (!eligibility) return [];
+		const nextQuest = eligibility.quests.find((q) => !q.done);
+		return nextQuest?.gaps ?? [];
+	}
+
+	interface LockInfo {
+		locked: boolean;
+		unavailable: boolean;
+		gaps: EligibilityGap[];
+	}
+
+	// Computed once per questline (not once for filtering + once again per rendered
+	// row) — both `matchesEligibilityFilter` and the row template below read from
+	// this instead of independently re-deriving the same lock/gap facts.
+	const lockInfoByQuestline = $derived.by(() => {
+		const map = new Map<string, LockInfo>();
+		for (const g of questlineOptions) {
+			const locked = hasEligibilityData && !questlineEligible(g);
+			const gaps = locked ? lockGaps(g) : [];
+			map.set(g.name, { locked, unavailable: locked && isUnavailable(gaps), gaps });
+		}
+		return map;
+	});
+
 	let questlineQuery = $state('');
-	type QuestlineStatusFilter = 'all' | 'not-started' | 'ongoing' | 'done';
-	let questlineStatusFilter = $state<QuestlineStatusFilter>('all');
+	type QuestlineStatusFilter = 'not-started' | 'ongoing' | 'done';
+	// Checkbox-style multi-select, all three checked by default (no filtering).
+	let questlineStatusFilters = $state<Set<QuestlineStatusFilter>>(
+		new Set(['not-started', 'ongoing', 'done'])
+	);
 
 	const questlinesState = getQuestlinesState();
 	const dataLastUpdatedLabel = $derived(
@@ -55,12 +135,22 @@
 		done: 'good'
 	};
 
+	// Unavailable (expired-season) chains are gated by `showUnavailable` alone,
+	// bypassing the Eligible/Locked checkboxes entirely — it's neither, it's a
+	// distinct "possibly gone for good" category the player opts into seeing.
+	function matchesEligibilityFilter(g: Questline): boolean {
+		if (!hasEligibilityData) return true;
+		const info = lockInfoByQuestline.get(g.name);
+		if (info?.unavailable) return showUnavailable;
+		return eligibilityFilters.has(info?.locked ? 'locked' : 'eligible');
+	}
+
 	const filteredQuestlines = $derived(
 		questlineOptions.filter((g) => {
-			const matchesStatus =
-				questlineStatusFilter === 'all' ||
-				questlineStatus(g, completedCountByQuestline.get(g.name) ?? 0) === questlineStatusFilter;
-			return matchesQuery(g.name, questlineQuery) && matchesStatus;
+			const matchesStatus = questlineStatusFilters.has(
+				questlineStatus(g, completedCountByQuestline.get(g.name) ?? 0)
+			);
+			return matchesQuery(g.name, questlineQuery) && matchesStatus && matchesEligibilityFilter(g);
 		})
 	);
 
@@ -161,16 +251,46 @@
 		{/if}
 	</div>
 
-	<div class="flex flex-wrap gap-1.5 text-xs">
-		{#each [['all', 'All'], ['not-started', 'Not started'], ['ongoing', 'Ongoing'], ['done', 'Done']] as [value, label] (value)}
+	<!-- Every pill below is an independent toggle (checkbox semantics, aria-checked) —
+	     any combination can be active at once, e.g. "Not started" + "Locked" together. -->
+	<div class="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Filter by status">
+		{#each [['not-started', 'Not started'], ['ongoing', 'Ongoing'], ['done', 'Done']] as [value, label] (value)}
 			<button
-				onclick={() => (questlineStatusFilter = value as typeof questlineStatusFilter)}
-				class={buttonClass('pill', questlineStatusFilter === value)}
-				aria-pressed={questlineStatusFilter === value}
+				role="checkbox"
+				onclick={() =>
+					(questlineStatusFilters = toggleInSet(questlineStatusFilters, value as QuestlineStatusFilter))}
+				class={buttonClass('pill', questlineStatusFilters.has(value as QuestlineStatusFilter))}
+				aria-checked={questlineStatusFilters.has(value as QuestlineStatusFilter)}
 			>
 				{label}
 			</button>
 		{/each}
+		{#if hasEligibilityData}
+			<span class="mx-0.5 h-4 w-px shrink-0 bg-gray-200 dark:bg-gray-700"></span>
+			<span role="group" aria-label="Filter by eligibility" class="contents">
+				{#each [['eligible', 'Eligible'], ['locked', 'Locked']] as [value, label] (value)}
+					<button
+						role="checkbox"
+						onclick={() =>
+							(eligibilityFilters = toggleInSet(eligibilityFilters, value as EligibilityFilter))}
+						class={buttonClass('pill', eligibilityFilters.has(value as EligibilityFilter))}
+						aria-checked={eligibilityFilters.has(value as EligibilityFilter)}
+					>
+						{label}
+					</button>
+				{/each}
+			</span>
+			<span class="mx-0.5 h-4 w-px shrink-0 bg-gray-200 dark:bg-gray-700"></span>
+			<button
+				role="checkbox"
+				onclick={() => (showUnavailable = !showUnavailable)}
+				title="Expired-seasonal quests, hidden by default"
+				class={buttonClass('pill-danger', showUnavailable)}
+				aria-checked={showUnavailable}
+			>
+				Show expired-season
+			</button>
+		{/if}
 	</div>
 
 	<div class="flex min-h-0 flex-1 flex-col gap-3">
@@ -180,6 +300,9 @@
 					{@const doneCount = completedCountByQuestline.get(g.name) ?? 0}
 					{@const queued = selectedQuestlineNameSet.has(g.name)}
 					{@const statusColor = statusTextColorClass(questlineSemanticStatus[questlineStatus(g, doneCount)])}
+					{@const locked = lockInfoByQuestline.get(g.name)?.locked ?? false}
+					{@const gaps = lockInfoByQuestline.get(g.name)?.gaps ?? []}
+					{@const unavailable = lockInfoByQuestline.get(g.name)?.unavailable ?? false}
 					<li>
 						<button
 							onclick={() => toggleQueue(g.name)}
@@ -191,9 +314,68 @@
 							class:hover:bg-emerald-100={queued}
 							class:dark:hover:bg-emerald-800={queued}
 						>
-							<span>{g.name}</span>
-							<span class="text-xs {statusColor}">{doneCount}/{g.questCount}</span>
+							<span class="min-w-0 truncate">{g.name}</span>
+							<span class="flex shrink-0 items-center gap-1.5">
+								{#if locked}
+									<span
+										role="button"
+										tabindex="0"
+										onclick={(e) => {
+											e.stopPropagation();
+											toggleLockExplanation(g.name);
+										}}
+										onkeydown={(e) => {
+											if (e.key === 'Enter' || e.key === ' ') {
+												e.preventDefault();
+												e.stopPropagation();
+												toggleLockExplanation(g.name);
+											}
+										}}
+										title={unavailable
+											? "A seasonal window has already passed — tap for details"
+											: 'Eligibility gap — tap for details'}
+										aria-expanded={expandedLock === g.name}
+										class="inline-flex cursor-pointer items-center gap-0.5 rounded px-1.5 py-0.5 text-[10px] font-semibold {unavailable
+											? 'bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300'
+											: 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300'}"
+									>
+										{unavailable ? 'UNAVAILABLE' : 'LOCKED'}
+										<ChevronDown
+											size={10}
+											class="transition-transform {expandedLock === g.name ? 'rotate-180' : ''}"
+										/>
+									</span>
+								{/if}
+								<span class="text-xs {statusColor}">{doneCount}/{g.questCount}</span>
+							</span>
 						</button>
+						{#if locked && expandedLock === g.name}
+							<div class="border-t border-gray-100 p-2 text-xs text-gray-500 dark:border-gray-700 dark:text-gray-400">
+								{#each gaps as gap (gap.kind + ':' + gap.label)}
+									<div
+										class="flex items-center gap-1 {gap.kind === 'season' && gap.expired
+											? 'text-red-600 dark:text-red-400'
+											: ''}"
+									>
+										{#if gap.kind === 'season'}
+											{gap.detail}
+										{:else}
+											{#if gap.kind === 'npc' && getNpcImagePath(gap.label)}
+												<img
+													src={getNpcImagePath(gap.label)}
+													alt=""
+													width="14"
+													height="14"
+													class="inline-block shrink-0"
+													loading="lazy"
+												/>
+											{/if}
+											{gap.label}: need level {gap.required}, have {gap.have}
+										{/if}
+									</div>
+								{/each}
+							</div>
+						{/if}
 					</li>
 				{:else}
 					<li class="p-4 text-center text-xs text-gray-400">

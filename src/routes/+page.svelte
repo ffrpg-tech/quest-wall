@@ -4,15 +4,23 @@
 	import { TriangleAlert } from '@lucide/svelte';
 	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { canonicalUrl, DEFAULT_DESCRIPTION, SITE_NAME } from '$lib/seo';
-	import { questKey, type InventoryEntry, type Questline } from '$lib/quest/types';
+	import {
+		questKey,
+		type ImportTab,
+		type InventoryEntry,
+		type PlayerStats,
+		type Questline
+	} from '$lib/quest/types';
 	import { loadQuestlines, getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
 	import { loadItems, getItemsState } from '$lib/quest/storage/itemsStore.svelte';
+	import { loadNpcs, getNpcsState } from '$lib/quest/storage/npcsStore.svelte';
 	import { inventoryToMap } from '$lib/quest/parsing/inventory';
 	import {
 		aggregateQueueShortfalls,
 		diffQuestlineQueue,
 		type QuestlineDiffResult
 	} from '$lib/quest/calc/diff';
+	import { evaluateQuestlineEligibility, type QuestlineEligibility } from '$lib/quest/calc/eligibility';
 	import {
 		loadCompleted,
 		saveCompleted,
@@ -22,11 +30,15 @@
 		saveInventory,
 		loadQueue,
 		saveQueue,
-		loadInventoryBaseline
+		loadInventoryBaseline,
+		loadPlayerStats,
+		savePlayerStats,
+		clearPlayerStats
 	} from '$lib/quest/storage/persistence';
 	import LoadingOverlay from '$lib/components/LoadingOverlay.svelte';
 	import AppHeader from '$lib/components/AppHeader.svelte';
 	import InventoryPanel from '$lib/components/InventoryPanel.svelte';
+	import PlayerStatsPanel from '$lib/components/PlayerStatsPanel.svelte';
 	import QuestlinePicker from '$lib/components/QuestlinePicker.svelte';
 	import ShortfallSummary from '$lib/components/ShortfallSummary.svelte';
 	import ResultsList from '$lib/components/ResultsList.svelte';
@@ -60,9 +72,13 @@
 	const itemsState = getItemsState();
 	const itemsHydrated = $derived(itemsState.itemsHydrated);
 
+	const npcsState = getNpcsState();
+	const npcsHydrated = $derived(npcsState.npcsHydrated);
+
 	onMount(() => {
 		void loadQuestlines();
 		void loadItems();
+		void loadNpcs();
 	});
 
 	const questlineOptions = $derived(
@@ -233,12 +249,41 @@
 		diffResults.length > 0 ? aggregateQueueShortfalls(diffResults) : []
 	);
 
+	// ---------- Player stats / eligibility ----------
+
+	// Null means "never pasted" — skill/NPC gaps (and the LOCKED badges they
+	// drive) stay hidden until then, rather than showing an "unknown" state.
+	// Seasonal availability is independent of stats though — evaluateQuestlineEligibility
+	// still runs with a null `stats` and reports expired-season gaps regardless, so an
+	// UNAVAILABLE quest shows as such even before any stats are pasted.
+	let playerStats = $state<PlayerStats | null>(null);
+
+	onMount(() => {
+		playerStats = loadPlayerStats();
+	});
+
+	function handleClearPlayerStats() {
+		playerStats = null;
+		clearPlayerStats();
+	}
+
+	function handleUpdatePlayerStats(stats: PlayerStats) {
+		playerStats = stats;
+		trackSave(savePlayerStats(stats));
+	}
+
+	const eligibilityByQuestline = $derived.by(() => {
+		const now = new Date();
+		return new Map(
+			questlineOptions.map((g) => [g.name, evaluateQuestlineEligibility(g, playerStats, completed, now)])
+		);
+	});
+
 	// ---------- Modals ----------
 
 	let progressModalOpen = $state(false);
 	let feedbackModalOpen = $state(false);
 
-	type ImportTab = 'inventory' | 'bank' | 'completed';
 	let importModalOpen = $state(false);
 	let importTab = $state<ImportTab>('inventory');
 
@@ -277,7 +322,8 @@
 		{ label: 'Completed quests', done: hydrated },
 		{ label: 'Questline queue', done: queueHydrated },
 		{ label: 'Questlines', done: questlinesHydrated },
-		{ label: 'Items', done: itemsHydrated }
+		{ label: 'Items', done: itemsHydrated },
+		{ label: 'NPCs', done: npcsHydrated }
 	]);
 	const appReady = $derived(loadingStages.every((s) => s.done));
 </script>
@@ -339,6 +385,13 @@
 	{/if}
 
 	<main class="space-y-8">
+		<PlayerStatsPanel
+			{playerStats}
+			onOpenImport={() => openImportModal('stats')}
+			onClear={handleClearPlayerStats}
+			onUpdate={handleUpdatePlayerStats}
+		/>
+
 		<section class="grid grid-rows-[60vh_70vh] gap-6 md:h-[100vh] md:grid-cols-2 md:grid-rows-none">
 			<InventoryPanel
 				bind:inventory
@@ -349,6 +402,7 @@
 				{questlineOptions}
 				{questlineByName}
 				{completedCountByQuestline}
+				{eligibilityByQuestline}
 				bind:selectedQuestlineNames
 				{questlinesHydrated}
 				{questlinesError}
@@ -358,7 +412,7 @@
 
 		<ShortfallSummary {diffResults} {shortfallSummary} />
 
-		<ResultsList {diffResults} onToggleCompleted={toggleCompleted} />
+		<ResultsList {diffResults} {eligibilityByQuestline} onToggleCompleted={toggleCompleted} />
 	</main>
 
 	<SiteFooter />
@@ -377,6 +431,7 @@
 	bind:open={importModalOpen}
 	bind:tab={importTab}
 	bind:inventory
+	bind:playerStats
 	{questlineOptions}
 	{completed}
 	{inventoryBaseline}

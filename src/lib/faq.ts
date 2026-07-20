@@ -30,6 +30,6 @@ export const faqItems = [
 	{
 		question: 'Does it account for level, prerequisite, or event-availability requirements?',
 		answer:
-			"It only checks materials for the questlines you queue — it doesn't verify you're eligible to start them (core/tower level, prerequisites, event availability), so only add questlines you can already begin."
+			'Once you paste your player stats (from the "My Profile" page, via the "Import data" button), it checks skill and NPC friendship level requirements too, flagging locked questlines. It still doesn\'t verify quest-to-quest prerequisites or event-availability windows, so only add questlines you can already begin.'
 	}
 ];
