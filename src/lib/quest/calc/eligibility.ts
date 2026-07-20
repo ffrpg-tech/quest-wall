@@ -1,0 +1,170 @@
+import { questKey, type PlayerStats, type Quest, type Questline, type SkillLevelRequirement } from '../types';
+
+export interface EligibilityGap {
+	kind: 'skill' | 'npc' | 'season';
+	label: string;
+	/** Only meaningful for 'skill'/'npc' — a 'season' gap is a date window, not a level. */
+	required?: number;
+	have?: number;
+	/** Human-readable explanation — only set for 'season' gaps (e.g. "Only available Jul 19 – Aug 19, 2026"). */
+	detail?: string;
+	/** Only set (and only ever true) for a 'season' gap whose `endDate` has already passed —
+	 * distinct from "not yet started": a future season is a plain, temporary LOCKED (it will
+	 * open on its own), but an already-ended one is UNAVAILABLE — there's no known guarantee
+	 * it ever comes back, unlike a skill/NPC gap the player can always close by leveling up. */
+	expired?: boolean;
+}
+
+/** True when any gap is a permanently-uncertain block (an expired seasonal window) rather
+ * than one the player can eventually close themselves — drives the LOCKED vs UNAVAILABLE
+ * distinction in the UI. Centralized here so the rule can't drift between the picker's
+ * badge and the Results per-quest status. */
+export function isUnavailable(gaps: EligibilityGap[]): boolean {
+	return gaps.some((g) => g.kind === 'season' && g.expired);
+}
+
+export interface QuestEligibility {
+	questName: string;
+	seq: number;
+	done: boolean;
+	eligible: boolean;
+	gaps: EligibilityGap[];
+}
+
+export interface QuestlineEligibility {
+	questlineName: string;
+	quests: QuestEligibility[];
+	/** True when every non-done quest in the chain is eligible. Not the same as
+	 * `canStartNow` — a chain can have a gap deep in the middle while every quest
+	 * up to that point (including the very next one) is fully startable now. */
+	allEligible: boolean;
+	/** True when the very next non-done quest (or there is none left) has no gap —
+	 * this is what "can I make progress on this chain right now" actually means,
+	 * as opposed to `allEligible`, which also flags chains with a wall many quests
+	 * away that don't block anything today. Drives the picker's Eligible/Locked
+	 * filter and badge. */
+	canStartNow: boolean;
+}
+
+const SKILL_LABELS: Record<keyof SkillLevelRequirement, string> = {
+	farming: 'Farming',
+	fishing: 'Fishing',
+	crafting: 'Crafting',
+	exploring: 'Exploring',
+	tower: 'Tower',
+	cooking: 'Cooking'
+};
+
+/** Case/trim-insensitive only — a safety net for casing drift (e.g. `ROOMBA` vs `Roomba`)
+ * between a pasted profile and `Quest.requiredNpc.name`. It does not resolve truncated
+ * names (`Star` vs `Star Meerif`); that resolution happens once, at parse time, in
+ * stats.ts, which stores `npcLevels` under already-canonical names. */
+function normalizeNpcName(name: string): string {
+	return name.trim().toLowerCase();
+}
+
+function formatDate(iso: string): string {
+	return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+/** `Quest.startDate`/`endDate` are '' for non-seasonal quests (see fetch-questlines.mjs) —
+ * only treated as a gate when at least one is a real date. `now` is injectable so this
+ * stays deterministic in tests instead of depending on the wall clock. */
+function seasonGap(quest: Quest, now: Date): EligibilityGap | null {
+	if (!quest.startDate && !quest.endDate) return null;
+
+	const start = quest.startDate ? new Date(quest.startDate) : null;
+	const end = quest.endDate ? new Date(quest.endDate) : null;
+	const inWindow = (!start || now >= start) && (!end || now <= end);
+	if (inWindow) return null;
+
+	const range =
+		start && end
+			? `${formatDate(quest.startDate)} – ${formatDate(quest.endDate)}`
+			: start
+				? `starting ${formatDate(quest.startDate)}`
+				: `until ${formatDate(quest.endDate)}`;
+
+	const expired = !!end && now > end;
+
+	return { kind: 'season', label: 'Seasonal', detail: `Only available ${range}`, expired };
+}
+
+/** `stats` is nullable: skill/NPC gaps require knowing the player's actual levels, so
+ * they're skipped entirely (not reported as met, not reported as a gap — just unknown)
+ * until stats have been pasted, matching the "unknown isn't locked" rule the picker/results
+ * badges rely on. The seasonal gap is date-only and has nothing to do with player stats, so
+ * it's always evaluated regardless — this is what lets an expired-season quest show as
+ * UNAVAILABLE even before any stats paste. */
+export function evaluateQuestEligibility(
+	quest: Quest,
+	stats: PlayerStats | null,
+	now: Date = new Date()
+): QuestEligibility {
+	const gaps: EligibilityGap[] = [];
+
+	if (stats) {
+		if (quest.requiredLevels) {
+			for (const [skill, required] of Object.entries(quest.requiredLevels) as [
+				keyof SkillLevelRequirement,
+				number | undefined
+			][]) {
+				if (required === undefined) continue;
+				const have = stats[skill];
+				if (have < required) {
+					gaps.push({ kind: 'skill', label: SKILL_LABELS[skill], required, have });
+				}
+			}
+		}
+
+		if (quest.requiredNpc) {
+			const normalizedTarget = normalizeNpcName(quest.requiredNpc.npc);
+			const match = Object.entries(stats.npcLevels).find(
+				([name]) => normalizeNpcName(name) === normalizedTarget
+			);
+			const have = match ? match[1] : 0;
+			if (have < quest.requiredNpc.level) {
+				gaps.push({
+					kind: 'npc',
+					label: quest.requiredNpc.npc,
+					required: quest.requiredNpc.level,
+					have
+				});
+			}
+		}
+	}
+
+	const season = seasonGap(quest, now);
+	if (season) gaps.push(season);
+
+	return {
+		questName: quest.name,
+		seq: quest.seq,
+		done: false,
+		eligible: gaps.length === 0,
+		gaps
+	};
+}
+
+export function evaluateQuestlineEligibility(
+	questline: Questline,
+	stats: PlayerStats | null,
+	completed: Set<string> = new Set(),
+	now: Date = new Date()
+): QuestlineEligibility {
+	const quests = questline.quests.map((q) => {
+		if (completed.has(questKey(questline.name, q.name))) {
+			return { questName: q.name, seq: q.seq, done: true, eligible: true, gaps: [] };
+		}
+		return evaluateQuestEligibility(q, stats, now);
+	});
+
+	const nextQuest = quests.find((q) => !q.done);
+
+	return {
+		questlineName: questline.name,
+		quests,
+		allEligible: quests.every((q) => q.eligible),
+		canStartNow: !nextQuest || nextQuest.eligible
+	};
+}

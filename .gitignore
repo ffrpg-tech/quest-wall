@@ -24,6 +24,7 @@ Thumbs.db
 /static/questlines.json
 /static/questlines-meta.json
 /static/items.json
+/static/npc.json
 /src/lib/data/items.json
 
 # Vite

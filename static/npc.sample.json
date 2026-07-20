@@ -1,0 +1,5 @@
+[
+	{ "image": "/img/items/sample_a.png", "name": "Sample Thomas", "isAvailable": true },
+	{ "image": "/img/items/sample_b.png", "name": "Sample Cecil", "isAvailable": true },
+	{ "image": "/img/items/sample_c.png", "name": "Sample Santa", "isAvailable": false }
+]

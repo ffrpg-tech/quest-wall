@@ -1,4 +1,4 @@
-import type { InventoryEntry } from '../types';
+import type { InventoryEntry, PlayerStats } from '../types';
 
 const STORAGE_KEY = 'farmrpg-quest-tracker:completed-v1';
 const DARK_MODE_KEY = 'farmrpg-quest-tracker:dark-mode';
@@ -6,6 +6,7 @@ const INVENTORY_KEY = 'farmrpg-quest-tracker:inventory-v1';
 const QUEUE_KEY = 'farmrpg-quest-tracker:queue-v1';
 const INVENTORY_BASELINE_KEY = 'farmrpg-quest-tracker:inventory-baseline-completed-v1';
 const CHANGELOG_SEEN_KEY = 'farmrpg-quest-tracker:changelog-seen-v1';
+const PLAYER_STATS_KEY = 'farmrpg-quest-tracker:player-stats-v1';
 const EXPORT_VERSION = 2;
 
 function hasLocalStorage(): boolean {
@@ -96,6 +97,49 @@ export function loadInventory(): InventoryEntry[] {
 
 export function saveInventory(inventory: InventoryEntry[]): boolean {
 	return saveJSON(INVENTORY_KEY, inventory);
+}
+
+function isPlayerStats(v: unknown): v is PlayerStats {
+	if (!v || typeof v !== 'object') return false;
+	const s = v as PlayerStats;
+	return (
+		typeof s.farming === 'number' &&
+		typeof s.fishing === 'number' &&
+		typeof s.crafting === 'number' &&
+		typeof s.exploring === 'number' &&
+		typeof s.tower === 'number' &&
+		typeof s.cooking === 'number' &&
+		!!s.npcLevels &&
+		typeof s.npcLevels === 'object' &&
+		Object.values(s.npcLevels).every((v) => typeof v === 'number')
+	);
+}
+
+/** Null means "never pasted" — distinct from a real all-zero stats object (a brand-new
+ * character before any leveling). Mirrors loadInventory/saveInventory's single-object
+ * JSON pattern; no existing helper handles a non-array shape, so this is a small
+ * symmetrical one rather than reshaping PlayerStats into an array. */
+export function loadPlayerStats(): PlayerStats | null {
+	if (!hasLocalStorage()) return null;
+	try {
+		const raw = window.localStorage.getItem(PLAYER_STATS_KEY);
+		if (!raw) return null;
+		const parsed: unknown = JSON.parse(raw);
+		return isPlayerStats(parsed) ? parsed : null;
+	} catch {
+		return null;
+	}
+}
+
+export function savePlayerStats(stats: PlayerStats): boolean {
+	return saveJSON(PLAYER_STATS_KEY, stats);
+}
+
+/** Resets to "never pasted" — removing the key rather than writing an all-zero object,
+ * since the latter is a real (if unlikely) PlayerStats value in its own right. */
+export function clearPlayerStats(): void {
+	if (!hasLocalStorage()) return;
+	window.localStorage.removeItem(PLAYER_STATS_KEY);
 }
 
 export function loadQueue(): string[] {

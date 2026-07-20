@@ -3,3 +3,6 @@
 
 /items.json
   Cache-Control: public, max-age=86400, stale-while-revalidate=604800
+
+/npc.json
+  Cache-Control: public, max-age=86400, stale-while-revalidate=604800

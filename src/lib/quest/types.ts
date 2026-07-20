@@ -3,6 +3,25 @@ export interface ItemQty {
 	qty: number;
 }
 
+export interface SkillLevelRequirement {
+	farming?: number;
+	fishing?: number;
+	crafting?: number;
+	exploring?: number;
+	tower?: number;
+	cooking?: number;
+}
+
+export interface NpcLevelRequirement {
+	npc: string;
+	level: number;
+}
+
+/** One prerequisite descriptor — a quest has a single predecessor requirement, which can itself span several questlines at once. `order` pins a specific step within a given prerequisite questline, not just "the whole questline". Not consumed by any eligibility/UI logic yet — captured for the deferred quest-dependency-graph idea. */
+export interface QuestlineOrderRef {
+	questlines: Array<{ questline: { title: string }; order: number }>;
+}
+
 export interface Quest {
 	id?: number;
 	name: string;
@@ -10,7 +29,28 @@ export interface Quest {
 	endDate: string;
 	requirements: ItemQty[];
 	seq: number;
+	requiredLevels?: SkillLevelRequirement;
+	/** Confirmed single NPC per quest — not a list. */
+	requiredNpc?: NpcLevelRequirement;
+	/** Raw pass-through, unused this round. */
+	pred?: QuestlineOrderRef;
+	/** Array (unlike `pred`) since one quest can unlock several different follow-up quests. */
+	dependentQuests?: QuestlineOrderRef[];
 }
+
+/** Player stats pasted from FarmRPG's "My Profile" page — see stats.ts. */
+export interface PlayerStats {
+	farming: number;
+	fishing: number;
+	crafting: number;
+	exploring: number;
+	tower: number;
+	cooking: number;
+	npcLevels: Record<string, number>;
+}
+
+/** The four paste tabs in ImportModal — hoisted here so it isn't defined twice (ImportModal.svelte and +page.svelte both need it). */
+export type ImportTab = 'inventory' | 'bank' | 'completed' | 'stats';
 
 export interface Questline {
 	name: string;
@@ -19,6 +59,18 @@ export interface Questline {
 }
 
 export type QuestlinesData = Record<string, Questline>;
+
+/** One row of the fetched NPC roster (see npc.json in the data pipeline).
+ * `isAvailable` is a snapshot from the source at fetch time, not a real date
+ * window — unlike `Quest.startDate`/`endDate`, there's no known season range
+ * for the NPCs that toggle this, so an unavailable NPC is treated as
+ * permanently gone (filtered out) rather than fed into the seasonal-gap
+ * logic in eligibility.ts. */
+export interface Npc {
+	name: string;
+	image: string;
+	isAvailable: boolean;
+}
 
 export interface InventoryEntry {
 	item: string;
@@ -37,6 +89,30 @@ function isItemQty(v: unknown): v is ItemQty {
 	return typeof e.item === 'string' && typeof e.qty === 'number' && Number.isFinite(e.qty);
 }
 
+const SKILL_KEYS: (keyof SkillLevelRequirement)[] = [
+	'farming',
+	'fishing',
+	'crafting',
+	'exploring',
+	'tower',
+	'cooking'
+];
+
+function isSkillLevelRequirement(v: unknown): v is SkillLevelRequirement {
+	if (!v || typeof v !== 'object') return false;
+	const r = v as SkillLevelRequirement;
+	return Object.entries(r).every(([key, value]) => {
+		if (!SKILL_KEYS.includes(key as keyof SkillLevelRequirement)) return false;
+		return value === undefined || typeof value === 'number';
+	});
+}
+
+function isNpcLevelRequirement(v: unknown): v is NpcLevelRequirement {
+	if (!v || typeof v !== 'object') return false;
+	const n = v as NpcLevelRequirement;
+	return typeof n.npc === 'string' && typeof n.level === 'number';
+}
+
 function isQuest(v: unknown): v is Quest {
 	if (!v || typeof v !== 'object') return false;
 	const q = v as Quest;
@@ -47,7 +123,9 @@ function isQuest(v: unknown): v is Quest {
 		typeof q.endDate === 'string' &&
 		Array.isArray(q.requirements) &&
 		q.requirements.every(isItemQty) &&
-		typeof q.seq === 'number'
+		typeof q.seq === 'number' &&
+		(q.requiredLevels === undefined || isSkillLevelRequirement(q.requiredLevels)) &&
+		(q.requiredNpc === undefined || isNpcLevelRequirement(q.requiredNpc))
 	);
 }
 
@@ -66,4 +144,15 @@ function isQuestline(v: unknown): v is Questline {
 export function isQuestlinesData(v: unknown): v is QuestlinesData {
 	if (!v || typeof v !== 'object' || Array.isArray(v)) return false;
 	return Object.values(v).every(isQuestline);
+}
+
+function isNpc(v: unknown): v is Npc {
+	if (!v || typeof v !== 'object') return false;
+	const n = v as Npc;
+	return typeof n.name === 'string' && typeof n.image === 'string' && typeof n.isAvailable === 'boolean';
+}
+
+/** Structural check on the fetched `npc.json` payload — same rationale as `isQuestlinesData`. */
+export function isNpcArray(v: unknown): v is Npc[] {
+	return Array.isArray(v) && v.every(isNpc);
 }
