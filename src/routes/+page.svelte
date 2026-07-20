@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { asset } from '$app/paths';
 	import { TriangleAlert } from '@lucide/svelte';
 	import { SvelteSet, SvelteMap } from 'svelte/reactivity';
 	import { canonicalUrl, DEFAULT_DESCRIPTION, SITE_NAME } from '$lib/seo';
@@ -294,6 +295,13 @@
 	<meta name="twitter:card" content="summary" />
 	<meta name="twitter:title" content={SITE_NAME} />
 	<meta name="twitter:description" content={DEFAULT_DESCRIPTION} />
+
+	<!-- Preload the runtime-fetched data JSON so the browser starts downloading
+	     it while parsing <head>, instead of waiting for onMount's fetch() to
+	     fire after the route chunk loads and hydrates. -->
+	<link rel="preload" href={asset('/questlines.json')} as="fetch" crossorigin="anonymous" />
+	<link rel="preload" href={asset('/items.json')} as="fetch" crossorigin="anonymous" />
+	<link rel="preload" href={asset('/questlines-meta.json')} as="fetch" crossorigin="anonymous" />
 
 	<!-- eslint-disable svelte/no-at-html-tags -- JSON-LD script tags: content is
 	     JSON.stringify of static, developer-authored objects above, not user
