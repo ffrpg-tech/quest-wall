@@ -14,6 +14,7 @@ the page parses this file directly, so an entry added here is what users see.
 ### Added
 
 - Player progression: paste your "My Profile" page to check skill, Tower, and NPC friendship level requirements, not just materials. Questlines you're not yet eligible for show a LOCKED or UNAVAILABLE (expired-season) badge, with tap-to-expand details on exactly what's missing; the questline picker gains Eligible/Locked filters and an opt-in toggle for expired-season chains.
+- Quest-to-quest prerequisites are now checked too — a quest that depends on progress in another questline shows LOCKED with a "Complete X first" explanation until that prerequisite is actually done.
 - A "Player stats" panel for viewing and hand-editing your pasted skill/Tower/NPC levels, alongside a matching paste tab in the Import dialog.
 - Items that can't be sent via in-game mail are flagged with a "CAN'T MAIL" badge, so shortfall planning accounts for items you'll have to source yourself.
 
