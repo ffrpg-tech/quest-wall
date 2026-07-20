@@ -1,6 +1,6 @@
 [
-	{ "name": "Sample Apple", "image": "" },
-	{ "name": "Sample Wood", "image": "" },
-	{ "name": "Sample Silver Ore", "image": "" },
+	{ "name": "Sample Apple", "image": "", "canMail": true },
+	{ "name": "Sample Wood", "image": "", "canMail": true },
+	{ "name": "Sample Silver Ore", "image": "", "canMail": false },
 	{ "name": "Sample Trout", "image": "" }
 ]
