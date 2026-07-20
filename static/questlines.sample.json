@@ -38,7 +38,10 @@
 				],
 				"seq": 2,
 				"requiredLevels": { "farming": 20, "cooking": 5 },
-				"requiredNpc": { "npc": "Rosalie", "level": 10 }
+				"requiredNpc": { "npc": "Rosalie", "level": 10 },
+				"dependentQuests": [
+					{ "questlines": [{ "questline": { "title": "Sample Fishing Trip" }, "order": 0 }] }
+				]
 			}
 		]
 	},
@@ -52,7 +55,10 @@
 				"startDate": "",
 				"endDate": "",
 				"requirements": [{ "item": "Sample Trout", "qty": 15 }],
-				"seq": 0
+				"seq": 0,
+				"pred": {
+					"questlines": [{ "questline": { "title": "The Sample Orchard" }, "order": 2 }]
+				}
 			},
 			{
 				"id": 5,

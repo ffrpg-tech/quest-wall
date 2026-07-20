@@ -357,7 +357,9 @@
 											? 'text-red-600 dark:text-red-400'
 											: ''}"
 									>
-										{#if gap.kind === 'season'}
+										{#if gap.kind === 'pred'}
+											{gap.label} — {gap.detail}
+										{:else if gap.kind === 'season'}
 											{gap.detail}
 										{:else}
 											{#if gap.kind === 'npc' && getNpcImagePath(gap.label)}

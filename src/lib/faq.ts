@@ -30,6 +30,6 @@ export const faqItems = [
 	{
 		question: 'Does it account for level, prerequisite, or event-availability requirements?',
 		answer:
-			'Once you paste your player stats (from the "My Profile" page, via the "Import data" button), it checks skill and NPC friendship level requirements too, flagging locked questlines. It still doesn\'t verify quest-to-quest prerequisites or event-availability windows, so only add questlines you can already begin.'
+			'Once you paste your player stats (from the "My Profile" page, via the "Import data" button), it checks skill and NPC friendship level requirements too, flagging locked questlines. It also checks quest-to-quest prerequisites against your completed quests. It doesn\'t verify event-availability windows, so only add event questlines you can already begin.'
 	}
 ];

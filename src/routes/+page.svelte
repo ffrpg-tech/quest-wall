@@ -275,7 +275,10 @@
 	const eligibilityByQuestline = $derived.by(() => {
 		const now = new Date();
 		return new Map(
-			questlineOptions.map((g) => [g.name, evaluateQuestlineEligibility(g, playerStats, completed, now)])
+			questlineOptions.map((g) => [
+				g.name,
+				evaluateQuestlineEligibility(g, playerStats, completed, questlineByName, now)
+			])
 		);
 	});
 

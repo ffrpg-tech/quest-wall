@@ -1,12 +1,13 @@
 import { questKey, type PlayerStats, type Quest, type Questline, type SkillLevelRequirement } from '../types';
 
 export interface EligibilityGap {
-	kind: 'skill' | 'npc' | 'season';
+	kind: 'skill' | 'npc' | 'season' | 'pred';
 	label: string;
 	/** Only meaningful for 'skill'/'npc' — a 'season' gap is a date window, not a level. */
 	required?: number;
 	have?: number;
-	/** Human-readable explanation — only set for 'season' gaps (e.g. "Only available Jul 19 – Aug 19, 2026"). */
+	/** Human-readable explanation — set for 'season' gaps (e.g. "Only available Jul 19 – Aug 19, 2026")
+	 * and 'pred' gaps (e.g. 'Complete "Light the Fuse" first'). */
 	detail?: string;
 	/** Only set (and only ever true) for a 'season' gap whose `endDate` has already passed —
 	 * distinct from "not yet started": a future season is a plain, temporary LOCKED (it will
@@ -90,6 +91,38 @@ function seasonGap(quest: Quest, now: Date): EligibilityGap | null {
 	return { kind: 'season', label: 'Seasonal', detail: `Only available ${range}`, expired };
 }
 
+/** Resolves `quest.pred` (AND semantics — every listed questline/order pair must be reached
+ * in `completed`) against the full known questline set. Fails open on any unresolvable ref
+ * (unknown questline title, or an `order` with no matching quest `seq` in it) rather than
+ * blocking the player on stale/dangling upstream data — that ref is treated as satisfied and
+ * simply produces no gap. */
+function predGaps(
+	quest: Quest,
+	allQuestlines: Map<string, Questline>,
+	completed: Set<string>
+): EligibilityGap[] {
+	const refs = quest.pred?.questlines ?? [];
+	const gaps: EligibilityGap[] = [];
+
+	for (const ref of refs) {
+		const target = allQuestlines.get(ref.questline.title);
+		if (!target) continue;
+
+		const targetQuest = target.quests.find((q) => q.seq === ref.order);
+		if (!targetQuest) continue;
+
+		if (!completed.has(questKey(target.name, targetQuest.name))) {
+			gaps.push({
+				kind: 'pred',
+				label: target.name,
+				detail: `Complete "${targetQuest.name}" first`
+			});
+		}
+	}
+
+	return gaps;
+}
+
 /** `stats` is nullable: skill/NPC gaps require knowing the player's actual levels, so
  * they're skipped entirely (not reported as met, not reported as a gap — just unknown)
  * until stats have been pasted, matching the "unknown isn't locked" rule the picker/results
@@ -150,13 +183,19 @@ export function evaluateQuestlineEligibility(
 	questline: Questline,
 	stats: PlayerStats | null,
 	completed: Set<string> = new Set(),
+	allQuestlines: Map<string, Questline> = new Map(),
 	now: Date = new Date()
 ): QuestlineEligibility {
 	const quests = questline.quests.map((q) => {
 		if (completed.has(questKey(questline.name, q.name))) {
 			return { questName: q.name, seq: q.seq, done: true, eligible: true, gaps: [] };
 		}
-		return evaluateQuestEligibility(q, stats, now);
+
+		const base = evaluateQuestEligibility(q, stats, now);
+		const pred = predGaps(q, allQuestlines, completed);
+		if (pred.length === 0) return base;
+
+		return { ...base, eligible: false, gaps: [...base.gaps, ...pred] };
 	});
 
 	const nextQuest = quests.find((q) => !q.done);

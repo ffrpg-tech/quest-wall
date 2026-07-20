@@ -230,4 +230,119 @@ describe('evaluateQuestlineEligibility', () => {
 		const result = evaluateQuestlineEligibility(questline, baseStats, completed);
 		expect(result.canStartNow).toBe(true);
 	});
+
+	describe('prerequisites (pred)', () => {
+		const upstream: Questline = {
+			name: 'Upstream Chain',
+			questCount: 2,
+			quests: [
+				{ name: 'Upstream I', startDate: '', endDate: '', requirements: [], seq: 0 },
+				{ name: 'Upstream II', startDate: '', endDate: '', requirements: [], seq: 1 }
+			]
+		};
+
+		const gatedQuestline: Questline = {
+			name: 'Gated Chain',
+			questCount: 1,
+			quests: [
+				{
+					name: 'Gated I',
+					startDate: '',
+					endDate: '',
+					requirements: [],
+					seq: 0,
+					pred: { questlines: [{ questline: { title: 'Upstream Chain' }, order: 1 }] }
+				}
+			]
+		};
+
+		const allQuestlines = new Map([
+			['Upstream Chain', upstream],
+			['Gated Chain', gatedQuestline]
+		]);
+
+		it('reports a pred gap when the referenced predecessor quest is not completed', () => {
+			const result = evaluateQuestlineEligibility(gatedQuestline, baseStats, new Set(), allQuestlines);
+			expect(result.quests[0].eligible).toBe(false);
+			expect(result.quests[0].gaps).toEqual([
+				{ kind: 'pred', label: 'Upstream Chain', detail: 'Complete "Upstream II" first' }
+			]);
+		});
+
+		it('clears the pred gap once the referenced predecessor quest is completed', () => {
+			const completed = new Set(['Upstream Chain::Upstream II']);
+			const result = evaluateQuestlineEligibility(gatedQuestline, baseStats, completed, allQuestlines);
+			expect(result.quests[0].eligible).toBe(true);
+			expect(result.quests[0].gaps).toEqual([]);
+		});
+
+		it('requires every listed prerequisite (AND semantics), not just one', () => {
+			const multiGated: Questline = {
+				name: 'Multi Gated Chain',
+				questCount: 1,
+				quests: [
+					{
+						name: 'Multi Gated I',
+						startDate: '',
+						endDate: '',
+						requirements: [],
+						seq: 0,
+						pred: {
+							questlines: [
+								{ questline: { title: 'Upstream Chain' }, order: 0 },
+								{ questline: { title: 'Upstream Chain' }, order: 1 }
+							]
+						}
+					}
+				]
+			};
+			// Only the order-0 predecessor is done; order-1 is still outstanding.
+			const completed = new Set(['Upstream Chain::Upstream I']);
+			const result = evaluateQuestlineEligibility(multiGated, baseStats, completed, allQuestlines);
+			expect(result.quests[0].eligible).toBe(false);
+			expect(result.quests[0].gaps).toEqual([
+				{ kind: 'pred', label: 'Upstream Chain', detail: 'Complete "Upstream II" first' }
+			]);
+		});
+
+		it('fails open (no gap) when pred references an unknown questline title', () => {
+			const dangling: Questline = {
+				name: 'Dangling Chain',
+				questCount: 1,
+				quests: [
+					{
+						name: 'Dangling I',
+						startDate: '',
+						endDate: '',
+						requirements: [],
+						seq: 0,
+						pred: { questlines: [{ questline: { title: 'Nonexistent Chain' }, order: 0 }] }
+					}
+				]
+			};
+			const result = evaluateQuestlineEligibility(dangling, baseStats, new Set(), allQuestlines);
+			expect(result.quests[0].eligible).toBe(true);
+			expect(result.quests[0].gaps).toEqual([]);
+		});
+
+		it('fails open (no gap) when pred references an order with no matching quest seq', () => {
+			const dangling: Questline = {
+				name: 'Dangling Chain',
+				questCount: 1,
+				quests: [
+					{
+						name: 'Dangling I',
+						startDate: '',
+						endDate: '',
+						requirements: [],
+						seq: 0,
+						pred: { questlines: [{ questline: { title: 'Upstream Chain' }, order: 99 }] }
+					}
+				]
+			};
+			const result = evaluateQuestlineEligibility(dangling, baseStats, new Set(), allQuestlines);
+			expect(result.quests[0].eligible).toBe(true);
+			expect(result.quests[0].gaps).toEqual([]);
+		});
+	});
 });

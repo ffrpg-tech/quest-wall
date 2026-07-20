@@ -17,7 +17,7 @@ export interface NpcLevelRequirement {
 	level: number;
 }
 
-/** One prerequisite descriptor — a quest has a single predecessor requirement, which can itself span several questlines at once. `order` pins a specific step within a given prerequisite questline, not just "the whole questline". Not consumed by any eligibility/UI logic yet — captured for the deferred quest-dependency-graph idea. */
+/** One prerequisite descriptor — a quest has a single predecessor requirement, which can itself span several questlines at once. `order` pins a specific step within a given prerequisite questline, not just "the whole questline". `pred.questlines` is AND semantics (eligibility.ts's `predGaps`) — every listed questline/order pair must be reached in `completed`, not just one. */
 export interface QuestlineOrderRef {
 	questlines: Array<{ questline: { title: string }; order: number }>;
 }
@@ -32,9 +32,14 @@ export interface Quest {
 	requiredLevels?: SkillLevelRequirement;
 	/** Confirmed single NPC per quest — not a list. */
 	requiredNpc?: NpcLevelRequirement;
-	/** Raw pass-through, unused this round. */
+	/** Consumed by eligibility.ts's `predGaps` — fails open (treated as satisfied) if a
+	 * referenced questline title or `order` step can't be resolved against the currently
+	 * loaded questlines, rather than blocking on stale/dangling upstream data. */
 	pred?: QuestlineOrderRef;
-	/** Array (unlike `pred`) since one quest can unlock several different follow-up quests. */
+	/** Array (unlike `pred`) since one quest can unlock several different follow-up quests.
+	 * Not consumed anywhere — `pred` on the downstream quest is the side that actually gates
+	 * eligibility; this is kept only as a raw pass-through for the deferred
+	 * quest-dependency-graph idea. */
 	dependentQuests?: QuestlineOrderRef[];
 }
 

@@ -97,6 +97,9 @@
 							? 'text-red-700 dark:text-red-400'
 							: 'text-amber-700 dark:text-amber-400'}">{gap.detail}</span
 					>
+				{:else if gap.kind === 'pred'}
+					<span class="font-medium text-amber-700 dark:text-amber-400">{gap.label}</span> —
+					{gap.detail}
 				{:else}
 					{#if gap.kind === 'npc' && getNpcImagePath(gap.label)}
 						<img
