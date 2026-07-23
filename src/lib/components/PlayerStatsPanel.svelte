@@ -131,8 +131,8 @@
 			<div class="relative">
 				<input
 					bind:value={npcQuery}
-					placeholder="Search friendship levels…"
-					aria-label="Search friendship levels"
+					placeholder="Search NPC"
+					aria-label="Search NPC"
 					class="w-full rounded border border-gray-300 p-1.5 pr-9 text-sm transition-colors hover:border-gray-400 dark:border-gray-600 dark:bg-gray-800 dark:hover:border-gray-500"
 				/>
 				{#if npcQuery}
