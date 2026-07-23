@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { Upload, GripVertical, ChevronUp, ChevronDown, X } from '@lucide/svelte';
+	import { Upload, GripVertical, ChevronUp, ChevronDown, X, Star } from '@lucide/svelte';
 	import { buttonClass } from '$lib/ui/buttonClass';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
 	import { retryQuestlines, getQuestlinesState } from '$lib/quest/storage/questlinesStore.svelte';
@@ -63,6 +63,14 @@
 	function questlineEligible(g: Questline): boolean {
 		return eligibilityByQuestline.get(g.name)?.canStartNow ?? true;
 	}
+
+	// A questline counts as "main" if any of its quests is flagged — the source
+	// data marks main-story status per-quest, not per-chain.
+	function isMainQuestline(g: Questline): boolean {
+		return g.quests.some((q) => q.mainQuest === true);
+	}
+
+	let mainQuestOnly = $state(false);
 
 	// CAPPED's `title` tooltip never reaches touch devices — tapping the badge
 	// toggles the same explanation inline instead, matching that existing pattern.
@@ -150,7 +158,12 @@
 			const matchesStatus = questlineStatusFilters.has(
 				questlineStatus(g, completedCountByQuestline.get(g.name) ?? 0)
 			);
-			return matchesQuery(g.name, questlineQuery) && matchesStatus && matchesEligibilityFilter(g);
+			return (
+				matchesQuery(g.name, questlineQuery) &&
+				matchesStatus &&
+				matchesEligibilityFilter(g) &&
+				(!mainQuestOnly || isMainQuestline(g))
+			);
 		})
 	);
 
@@ -291,6 +304,16 @@
 				Show expired-season
 			</button>
 		{/if}
+		<span class="mx-0.5 h-4 w-px shrink-0 bg-gray-200 dark:bg-gray-700"></span>
+		<button
+			role="checkbox"
+			onclick={() => (mainQuestOnly = !mainQuestOnly)}
+			title="Only show main-story questlines"
+			class={buttonClass('pill', mainQuestOnly)}
+			aria-checked={mainQuestOnly}
+		>
+			Main quest
+		</button>
 	</div>
 
 	<div class="flex min-h-0 flex-1 flex-col gap-3">
@@ -303,6 +326,7 @@
 					{@const locked = lockInfoByQuestline.get(g.name)?.locked ?? false}
 					{@const gaps = lockInfoByQuestline.get(g.name)?.gaps ?? []}
 					{@const unavailable = lockInfoByQuestline.get(g.name)?.unavailable ?? false}
+					{@const mainQuest = isMainQuestline(g)}
 					<li>
 						<button
 							onclick={() => toggleQueue(g.name)}
@@ -314,7 +338,16 @@
 							class:hover:bg-emerald-100={queued}
 							class:dark:hover:bg-emerald-800={queued}
 						>
-							<span class="min-w-0 truncate">{g.name}</span>
+							<span class="flex min-w-0 items-center gap-1">
+								{#if mainQuest}
+									<Star
+										size={12}
+										class="shrink-0 fill-amber-400 text-amber-400"
+										aria-label="Main quest"
+									/>
+								{/if}
+								<span class="truncate">{g.name}</span>
+							</span>
 							<span class="flex shrink-0 items-center gap-1.5">
 								{#if locked}
 									<span
