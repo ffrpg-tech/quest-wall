@@ -41,6 +41,11 @@ export interface Quest {
 	 * eligibility; this is kept only as a raw pass-through for the deferred
 	 * quest-dependency-graph idea. */
 	dependentQuests?: QuestlineOrderRef[];
+	/** Meaning still TBD (per Phase 2 backlog) — candidate use is a stronger permanently-retired
+	 * signal for UNAVAILABLE beyond date-window expiry. Not consumed by eligibility.ts yet. */
+	isHidden?: boolean;
+	/** Confirmed use: prioritize main-story chains in the (not-yet-built) recommendation ranking. */
+	mainQuest?: boolean;
 }
 
 /** Player stats pasted from FarmRPG's "My Profile" page — see stats.ts. */
@@ -130,7 +135,9 @@ function isQuest(v: unknown): v is Quest {
 		q.requirements.every(isItemQty) &&
 		typeof q.seq === 'number' &&
 		(q.requiredLevels === undefined || isSkillLevelRequirement(q.requiredLevels)) &&
-		(q.requiredNpc === undefined || isNpcLevelRequirement(q.requiredNpc))
+		(q.requiredNpc === undefined || isNpcLevelRequirement(q.requiredNpc)) &&
+		(q.isHidden === undefined || typeof q.isHidden === 'boolean') &&
+		(q.mainQuest === undefined || typeof q.mainQuest === 'boolean')
 	);
 }
 
