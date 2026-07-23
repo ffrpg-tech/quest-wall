@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { ChevronRight, Search } from '@lucide/svelte';
 	import { matchesQuery } from '$lib/ui/matchesQuery';
+	import { buttonClass } from '$lib/ui/buttonClass';
+	import { getItemCanMail } from '$lib/quest/storage/itemsStore.svelte';
 	import type { QuestlineDiffResult, QueueItemShortfall } from '$lib/quest/calc/diff';
 	import ItemIcon from './ItemIcon.svelte';
 
@@ -14,8 +16,29 @@
 
 	let shortfallSearch = $state('');
 
+	type MailFilter = 'mailable' | 'not-mailable';
+	// Checkbox-style multi-select, both checked by default (no filtering).
+	// An item with unknown canMail data always passes — this filter can only
+	// narrow down items the data actually has an answer for.
+	let mailFilters = $state<Set<MailFilter>>(new Set(['mailable', 'not-mailable']));
+
+	function toggleMailFilter(value: MailFilter) {
+		const next = new Set(mailFilters);
+		if (next.has(value)) next.delete(value);
+		else next.add(value);
+		mailFilters = next;
+	}
+
+	function matchesMailFilter(item: string): boolean {
+		const canMail = getItemCanMail(item);
+		if (canMail === undefined) return true;
+		return mailFilters.has(canMail ? 'mailable' : 'not-mailable');
+	}
+
 	const filteredShortfallSummary = $derived(
-		shortfallSummary.filter((s) => matchesQuery(s.item, shortfallSearch))
+		shortfallSummary.filter(
+			(s) => matchesQuery(s.item, shortfallSearch) && matchesMailFilter(s.item)
+		)
 	);
 
 	// CAPPED's `title` tooltip never reaches touch devices — tapping the badge
@@ -63,6 +86,18 @@
 						aria-label="Search items"
 						class="w-full rounded border border-gray-300 bg-white py-1.5 pl-8 pr-2 text-sm text-gray-900 placeholder-gray-400 focus:ring-2 focus:ring-emerald-500 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-100 dark:placeholder-gray-500"
 					/>
+				</div>
+				<div class="flex flex-wrap items-center gap-1.5 text-xs" role="group" aria-label="Filter by mailability">
+					{#each [['mailable', 'Mailable'], ['not-mailable', 'Not mailable']] as [value, label] (value)}
+						<button
+							role="checkbox"
+							onclick={() => toggleMailFilter(value as MailFilter)}
+							class={buttonClass('pill', mailFilters.has(value as MailFilter))}
+							aria-checked={mailFilters.has(value as MailFilter)}
+						>
+							{label}
+						</button>
+					{/each}
 				</div>
 				{#if filteredShortfallSummary.length === 0}
 					<p class="text-sm text-gray-500 dark:text-gray-400">
